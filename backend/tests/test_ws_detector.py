@@ -84,3 +84,90 @@ def test_ws_with_stub_detector():
             assert r["detector"] == "stub-test-detector"
     finally:
         registry.unregister("stub-test-detector")
+
+
+class _SlowStubDetector:
+    """TEST-ONLY detector that simulates a slow 1.5 s inference."""
+
+    @property
+    def name(self) -> str:
+        return "slow-stub-detector"
+
+    @property
+    def sample_rate(self) -> int:
+        return 16000
+
+    @property
+    def window_seconds(self) -> float:
+        return 5.0
+
+    def load(self) -> None:
+        pass
+
+    def predict(self, waveform: np.ndarray) -> float:
+        import time
+        time.sleep(1.5)
+        return 0.88
+
+
+def test_ws_with_slow_stub_detector():
+    """Verify (a) status messages continue arriving while detector runs;
+    (b) while detector is busy, the next hop yields reason 'detector_busy'.
+    """
+    detector = _SlowStubDetector()
+    registry.register(detector)
+
+    try:
+        client = TestClient(app)
+        with client.websocket_connect("/api/v1/ws/stream") as ws:
+            ws.send_text(START_MSG)
+            ready = json.loads(ws.receive_text())
+            assert ready["type"] == "ready"
+            assert ready["detector"] == "slow-stub-detector"
+
+            # 1) Stream first 4.5s -> 9 frames, expect 9 status messages, no result yet
+            for _ in range(9):
+                ws.send_bytes(_pcm_silence(0.5))
+                msg = json.loads(ws.receive_text())
+                assert msg["type"] == "status"
+
+            # 2) Frame 10: reaches 5.0s -> triggers inference (takes 1.5s in background thread)
+            ws.send_bytes(_pcm_silence(0.5))
+            msg10 = json.loads(ws.receive_text())
+            assert msg10["type"] == "status"
+            assert msg10["received_seconds"] == 5.0
+
+            # 3) Immediately send Frame 11 (5.5s): inference still running.
+            # Expect status message at 5.5s without blocking!
+            ws.send_bytes(_pcm_silence(0.5))
+            msg11 = json.loads(ws.receive_text())
+            assert msg11["type"] == "status"
+            assert msg11["received_seconds"] == 5.5
+
+            # 4) Immediately send Frame 12 (6.0s): next hop is due (received_seconds - last_result_at == 1.0s),
+            # but inference is still running (only ~0.1s elapsed, need 1.5s).
+            # Should receive status message AND a result message with detector_busy!
+            ws.send_bytes(_pcm_silence(0.5))
+            msg12_status = json.loads(ws.receive_text())
+            assert msg12_status["type"] == "status"
+            assert msg12_status["received_seconds"] == 6.0
+
+            msg12_result = json.loads(ws.receive_text())
+            assert msg12_result["type"] == "result"
+            assert msg12_result["reason"] == "detector_busy"
+            assert msg12_result["ai_probability"] is None
+            assert msg12_result["detector"] == "slow-stub-detector"
+
+            # Wait for original inference to complete
+            import time
+            time.sleep(1.6)
+
+            # Collect completed result from Frame 10
+            msg_completed = json.loads(ws.receive_text())
+            assert msg_completed["type"] == "result"
+            assert msg_completed["ai_probability"] == 0.88
+            assert msg_completed["reason"] == "thresholds_not_calibrated"
+
+            ws.send_text(json.dumps({"type": "stop"}))
+    finally:
+        registry.unregister("slow-stub-detector")

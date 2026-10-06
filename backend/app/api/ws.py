@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -32,6 +33,7 @@ async def stream(ws: WebSocket) -> None:
     last_status_at: float = 0.0
     last_result_at: float = 0.0
     started = False
+    inference_task: asyncio.Task | None = None
 
     try:
         while True:
@@ -40,8 +42,10 @@ async def stream(ws: WebSocket) -> None:
             if message.get("type") == "websocket.disconnect":
                 break
 
-            if "text" in message:
-                text = message["text"]
+            text = message.get("text")
+            raw_bytes = message.get("bytes")
+
+            if text is not None:
                 try:
                     data = json.loads(text)
                 except json.JSONDecodeError:
@@ -95,12 +99,12 @@ async def stream(ws: WebSocket) -> None:
                 await _send_error(ws, "unexpected_message", f"Unexpected message type: {msg_type}")
                 return
 
-            elif "bytes" in message:
+            elif raw_bytes is not None:
                 if not started or session is None:
                     await _send_error(ws, "invalid_start", "First message must be a start message")
                     return
 
-                frame = message["bytes"]
+                frame = raw_bytes
 
                 if len(frame) % 2 != 0:
                     await _send_error(ws, "bad_frame", "Frame has odd byte length")
@@ -142,22 +146,41 @@ async def stream(ws: WebSocket) -> None:
                             window_seconds=settings.window_seconds,
                             reason="no_detector_loaded",
                         )
-                    else:
-                        t0 = time.perf_counter()
-                        ai_prob = detector.predict(window)
-                        latency = (time.perf_counter() - t0) * 1000
-                        set_last_inference_ms(latency)
+                        await ws.send_text(result.model_dump_json())
+                    elif inference_task is not None and not inference_task.done():
+                        # Previous prediction still running: skip hop, do not queue
                         result = WsResultMessage(
                             t=round(session.received_seconds, 2),
                             window_seconds=settings.window_seconds,
-                            ai_probability=round(ai_prob, 4),
-                            verdict=None,
-                            smoothed_probability=None,
-                            latency_ms=round(latency, 2),
+                            ai_probability=None,
                             detector=detector.name,
-                            reason="thresholds_not_calibrated",
+                            reason="detector_busy",
                         )
-                    await ws.send_text(result.model_dump_json())
+                        await ws.send_text(result.model_dump_json())
+                    else:
+                        async def _run_inference(det, win, t_sec: float) -> None:
+                            t0 = time.perf_counter()
+                            try:
+                                ai_prob = await asyncio.to_thread(det.predict, win)
+                                latency = (time.perf_counter() - t0) * 1000
+                                set_last_inference_ms(latency)
+                                res = WsResultMessage(
+                                    t=round(t_sec, 2),
+                                    window_seconds=settings.window_seconds,
+                                    ai_probability=round(ai_prob, 4),
+                                    verdict=None,
+                                    smoothed_probability=None,
+                                    latency_ms=round(latency, 2),
+                                    detector=det.name,
+                                    reason="thresholds_not_calibrated",
+                                )
+                                await ws.send_text(res.model_dump_json())
+                            except Exception as e:
+                                logger.exception("Detector inference error: %s", e)
+
+                        inference_task = asyncio.create_task(
+                            _run_inference(detector, window, session.received_seconds)
+                        )
 
     except WebSocketDisconnect:
         pass
