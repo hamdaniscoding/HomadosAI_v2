@@ -101,8 +101,20 @@ class HFAudioDetector:
     def load(self) -> None:
         """Load feature extractor and model weights, verifying fake_label."""
         logger.info("Loading HFAudioDetector from '%s' on %s...", self.model_id, self.device)
-        self.feature_extractor = AutoFeatureExtractor.from_pretrained(self.model_id)
-        self.model = AutoModelForAudioClassification.from_pretrained(self.model_id)
+        target_path = self.model_id
+        if not Path(target_path).exists():
+            slug = str(self.model_id).replace("/", "--")
+            cached_cand = Path("models/hf_cache") / slug
+            if cached_cand.exists():
+                target_path = str(cached_cand)
+            elif (Path("models/hf_cache") / Path(self.model_id).name).exists():
+                target_path = str(Path("models/hf_cache") / Path(self.model_id).name)
+
+        self.feature_extractor = AutoFeatureExtractor.from_pretrained(target_path)
+        self.model = AutoModelForAudioClassification.from_pretrained(
+            target_path,
+            use_safetensors=True,
+        )
 
         # Verify fake_label exists in config id2label
         raw_id2label = getattr(self.model.config, "id2label", None)
