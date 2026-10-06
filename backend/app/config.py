@@ -27,6 +27,18 @@ class Settings(BaseSettings):
     torch_device: str = "cpu"
     ecapa_source: str = "speechbrain/spkrec-ecapa-voxceleb"
     ecapa_savedir: str = "models/ecapa_tdnn"
+    detector_model_id: str | None = None
+    detector_fake_label: str | None = None
+
+    @property
+    def DETECTOR_MODEL_ID(self) -> str | None:
+        """Alias for detector_model_id."""
+        return self.detector_model_id
+
+    @property
+    def DETECTOR_FAKE_LABEL(self) -> str | None:
+        """Alias for detector_fake_label."""
+        return self.detector_fake_label
 
     @property
     def origin_list(self) -> list[str]:
