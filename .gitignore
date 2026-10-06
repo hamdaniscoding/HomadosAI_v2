@@ -24,22 +24,26 @@ frontend/.env.local
 models/ecapa_tdnn/
 models/aasist/
 models/huggingface/
+models/hf_cache/
 *.pt
 *.pth
 *.ckpt
 *.bin
 *.onnx
+*.safetensors
 !models/
 !models/ecapa_tdnn/
 !models/aasist/
 !models/**/README.md
 
-# Audio samples (keep tiny fixtures only)
-data/raw/
-data/cache/
+# Audio samples and private data (keep tiny fixtures only)
+data/
 *.wav
 *.mp3
 *.flac
+*.ogg
+*.m4a
+*.opus
 !backend/tests/fixtures/.gitkeep
 
 # OS / IDE
