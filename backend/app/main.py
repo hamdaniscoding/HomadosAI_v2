@@ -1,3 +1,5 @@
+"""FastAPI application factory."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -7,9 +9,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.api.http import router as http_router
+from app.api.ws import router as ws_router
 from app.config import get_settings
-from app.routers.api import router as api_router
-from app.services.status import engine_status
 
 settings = get_settings()
 ROOT = Path(__file__).resolve().parents[2]
@@ -17,8 +19,8 @@ FRONTEND_DIST = ROOT / "frontend" / "dist"
 
 app = FastAPI(
     title="HOMADOS AI — VoiceGuardAI",
-    description="Real-time voice-cloning impersonation detection for SIH 2026 PS 26104.",
-    version="3.0.0",
+    description="Real-time AI voice detection backend.",
+    version="0.1.0",
 )
 
 origins = settings.origin_list
@@ -30,12 +32,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(api_router)
+app.include_router(http_router)
+app.include_router(ws_router)
 
 
 @app.get("/healthz")
-def healthz():
-    return engine_status()
+def healthz() -> dict[str, str]:
+    """Lightweight health check for Docker / Render."""
+    return {"status": "ok"}
 
 
 if FRONTEND_DIST.exists():
@@ -49,7 +53,8 @@ if FRONTEND_DIST.exists():
     RESERVED = {"docs", "redoc", "openapi.json", "healthz"}
 
     @app.get("/{full_path:path}")
-    def spa(full_path: str):
+    def spa(full_path: str) -> FileResponse:
+        """Serve the frontend SPA, avoiding API and doc routes."""
         if full_path.startswith("api") or full_path in RESERVED:
             raise HTTPException(status_code=404, detail="Not found")
         candidate = FRONTEND_DIST / full_path

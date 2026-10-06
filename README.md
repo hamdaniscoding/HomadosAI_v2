@@ -1,70 +1,86 @@
 # HOMADOS AI · VoiceGuardAI
 
-**Smart India Hackathon 2026 · PS 26104 · Team TapuSena**
+Real-time AI-generated voice detection over WebSocket audio streams.
 
-Real-time detection of voice-cloning impersonation on live calls. The engine fuses:
+## Current status
 
-1. **Spectral / prosodic forensics** (librosa STFT, log-mel, MFCC, pYIN pitch, 3.2 kHz vocoder band)
-2. **Speaker identity** via **ECAPA-TDNN** (SpeechBrain VoxCeleb pretrained — *attached now, training later on HPC*)
-3. **AASIST integration hand-off** from the public [clovaai/aasist](https://github.com/clovaai/aasist) source; the verified live branch is the explainable spectral detector
+**Detector not yet trained or loaded.** The backend provides:
 
-The operator UI is a responsive React app with remote Unsplash imagery. The
-deployed app is **not bound to localhost or home Wi-Fi**: the included Docker
-service hosts the compiled UI and API under one public HTTPS URL.
+- A WebSocket endpoint that receives live PCM audio and scores each 5-second
+  window once per second using a pluggable detector interface.
+- An HTTP endpoint for file-based analysis.
+- ECAPA-TDNN speaker embedding via SpeechBrain (optional, requires PyTorch).
 
-![Live monitor](docs/screenshots/screen1_live_monitor.png)
+Until a trained detector is registered, all results return
+`{"verdict": null, "reason": "no_detector_loaded"}`.
 
-## Repository map
+## Architecture
 
 ```
-Homados_ai/
-├── backend/app/            FastAPI, analysis pipeline, fusion
-├── frontend/               React + Vite operator console
-├── models/                 Pretrained weight directories (git-ignored binaries)
-├── scripts/                Environment + Hugging Face / SpeechBrain fetch
-├── docs/                   Deploy, HPC training, architecture notes
-├── Dockerfile              One public web service (UI + API)
-└── render.yaml             Cloud deploy
+backend/app/
+├── main.py                 FastAPI app factory, CORS, static SPA serving
+├── config.py               pydantic-settings configuration
+├── schemas.py              Pydantic models for HTTP and WebSocket messages
+├── features.py             Raw librosa feature extraction
+├── api/
+│   ├── http.py             GET /healthz, /api/v1/health, POST /analyze, /enroll
+│   └── ws.py               WebSocket /api/v1/ws/stream
+├── core/
+│   ├── audio.py            Audio decoding and PCM conversion
+│   └── buffer.py           Thread-safe rolling audio buffer
+├── detectors/
+│   ├── base.py             Detector protocol interface
+│   └── registry.py         Register, list, and retrieve detectors
+├── speaker/
+│   └── ecapa.py            ECAPA-TDNN encoder with lazy loading
+└── session/
+    └── stream_session.py   WebSocket session state
 ```
 
-## Quick start (Windows)
+## WebSocket protocol
 
-```powershell
+Endpoint: `ws://host:port/api/v1/ws/stream`
+
+1. Client sends `{"type":"start","sample_rate":16000,"channels":1,"encoding":"pcm_s16le","mode":"single"}`
+2. Server replies `{"type":"ready","session_id":"...","window_seconds":5.0,"hop_seconds":1.0,"detector":null}`
+3. Client sends binary frames of raw signed 16-bit little-endian PCM
+4. Server sends `{"type":"status",...}` every 0.5 s and `{"type":"result",...}` every 1 s (once 5 s of audio exist)
+5. Client sends `{"type":"stop"}` to end
+
+## Install
+
+```bash
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+.venv/Scripts/activate    # Windows
 pip install -r backend/requirements.txt
-cd frontend; npm install; npm run build; cd ..
-uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
-```
 
-Open `http://127.0.0.1:8000`. For day-to-day UI work: `cd frontend && npm run dev` (Vite proxies `/api`).
-
-## Public internet (any Wi-Fi)
-
-See [docs/PUBLIC_DEPLOY.md](docs/PUBLIC_DEPLOY.md). The recommended path is
-one Render Docker service for the UI and API; a Vercel frontend is optional.
-
-## Pretrained models (no laptop training)
-
-```powershell
-pip install -r backend/requirements-ml.txt   # needs Python 3.10–3.12 + PyTorch
+# Optional: for ECAPA speaker embeddings
+pip install -r backend/requirements-ml.txt
 python scripts/download_pretrained.py --ecapa
 ```
 
-ECAPA fine-tuning and AASIST training are documented in [docs/SUPERCOMPUTER_TRAINING.md](docs/SUPERCOMPUTER_TRAINING.md). AASIST is intentionally not advertised as live until its official architecture, compatible checkpoint, and validation set are attached.
+## Run
+
+```bash
+uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
+```
+
+API docs at `http://127.0.0.1:8000/docs`.
+
+## Test
+
+```bash
+pip install -r backend/requirements-dev.txt
+cd backend
+pytest -q
+```
 
 ## API
 
 | Method | Path | Purpose |
-|---|---|---|
-| GET | `/api/v1/health` | Engine + model attachment status |
-| GET | `/api/v1/session` | Demo inbound call (jury walkthrough) |
-| POST | `/api/v1/analyze` | Upload wav/mp3 → spectral + fusion risk |
-| POST | `/api/v1/enroll` | Build an ECAPA (or fallback) embedding |
-| POST | `/api/v1/escalate` | Callback / OTP / supervisor |
-
-Interactive docs: `/docs`.
-
-## Problem statement
-
-PS 26104 — *AI-Powered Real-Time Detection and Prevention of Voice Cloning Impersonation Attacks* (Blockchain & Cybersecurity theme). Product name **VoiceGuardAI**, internal name **HOMADOS AI**.
+|--------|------|--------|
+| GET | `/healthz` | Lightweight health check |
+| GET | `/api/v1/health` | Detailed system status |
+| POST | `/api/v1/analyze` | Upload audio file for analysis |
+| POST | `/api/v1/enroll` | Get ECAPA speaker embedding |
+| WS | `/api/v1/ws/stream` | Real-time audio streaming |

@@ -6,6 +6,5 @@ services:
     environment:
       APP_ENV: production
       CORS_ORIGINS: "*"
-      ENABLE_ECAPA: "false"
     volumes:
       - ./models:/app/models

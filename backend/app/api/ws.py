@@ -1,0 +1,179 @@
+"""WebSocket endpoint for real-time audio streaming."""
+
+from __future__ import annotations
+
+import json
+import logging
+import time
+
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+
+from app.api.http import set_last_inference_ms
+from app.config import get_settings
+from app.detectors.registry import get_active
+from app.schemas import (
+    WsErrorMessage,
+    WsReadyMessage,
+    WsResultMessage,
+    WsStatusMessage,
+)
+from app.session.stream_session import StreamSession
+
+logger = logging.getLogger("homados.ws")
+router = APIRouter()
+
+
+@router.websocket("/api/v1/ws/stream")
+async def stream(ws: WebSocket) -> None:
+    """Real-time audio streaming endpoint."""
+    await ws.accept()
+    settings = get_settings()
+    session: StreamSession | None = None
+    last_status_at: float = 0.0
+    last_result_at: float = 0.0
+    started = False
+
+    try:
+        while True:
+            message = await ws.receive()
+
+            if message.get("type") == "websocket.disconnect":
+                break
+
+            if "text" in message:
+                text = message["text"]
+                try:
+                    data = json.loads(text)
+                except json.JSONDecodeError:
+                    await _send_error(ws, "invalid_start", "Malformed JSON")
+                    return
+
+                msg_type = data.get("type")
+
+                if msg_type == "stop":
+                    break
+
+                if msg_type == "start":
+                    if started:
+                        await _send_error(ws, "unexpected_message", "Session already started")
+                        return
+
+                    sr = data.get("sample_rate")
+                    ch = data.get("channels")
+                    enc = data.get("encoding")
+                    mode = data.get("mode")
+
+                    if sr is None or ch is None or enc is None or mode is None:
+                        await _send_error(ws, "invalid_start", "Missing required fields in start message")
+                        return
+
+                    if sr != 16000 or ch != 1 or enc != "pcm_s16le" or mode != "single":
+                        await _send_error(
+                            ws,
+                            "unsupported_format",
+                            f"Unsupported format: sr={sr}, ch={ch}, enc={enc}, mode={mode}. "
+                            f"Required: 16000/1/pcm_s16le/single",
+                        )
+                        return
+
+                    session = StreamSession()
+                    started = True
+                    detector = get_active()
+                    ready = WsReadyMessage(
+                        session_id=session.session_id,
+                        window_seconds=settings.window_seconds,
+                        hop_seconds=settings.hop_seconds,
+                        detector=detector.name if detector else None,
+                    )
+                    await ws.send_text(ready.model_dump_json())
+                    continue
+
+                if not started:
+                    await _send_error(ws, "invalid_start", "First message must be a start message")
+                    return
+
+                await _send_error(ws, "unexpected_message", f"Unexpected message type: {msg_type}")
+                return
+
+            elif "bytes" in message:
+                if not started or session is None:
+                    await _send_error(ws, "invalid_start", "First message must be a start message")
+                    return
+
+                frame = message["bytes"]
+
+                if len(frame) % 2 != 0:
+                    await _send_error(ws, "bad_frame", "Frame has odd byte length")
+                    return
+
+                if len(frame) > settings.max_frame_bytes:
+                    await _send_error(
+                        ws,
+                        "frame_too_large",
+                        f"Frame size {len(frame)} exceeds limit {settings.max_frame_bytes}",
+                    )
+                    return
+
+                session.ingest(frame)
+
+                if session.received_seconds > settings.max_session_seconds:
+                    await _send_error(ws, "session_too_long", "Maximum session duration exceeded")
+                    return
+
+                if session.received_seconds - last_status_at >= 0.5:
+                    last_status_at = session.received_seconds
+                    status = WsStatusMessage(
+                        received_seconds=round(session.received_seconds, 2),
+                        needed_seconds=settings.window_seconds,
+                    )
+                    await ws.send_text(status.model_dump_json())
+
+                if (
+                    session.received_seconds >= settings.window_seconds
+                    and session.received_seconds - last_result_at >= settings.hop_seconds
+                ):
+                    last_result_at = session.received_seconds
+                    detector = get_active()
+                    window = session.buffer.latest(settings.window_seconds)
+
+                    if detector is None:
+                        result = WsResultMessage(
+                            t=round(session.received_seconds, 2),
+                            window_seconds=settings.window_seconds,
+                            reason="no_detector_loaded",
+                        )
+                    else:
+                        t0 = time.perf_counter()
+                        ai_prob = detector.predict(window)
+                        latency = (time.perf_counter() - t0) * 1000
+                        set_last_inference_ms(latency)
+                        result = WsResultMessage(
+                            t=round(session.received_seconds, 2),
+                            window_seconds=settings.window_seconds,
+                            ai_probability=round(ai_prob, 4),
+                            verdict=None,
+                            smoothed_probability=None,
+                            latency_ms=round(latency, 2),
+                            detector=detector.name,
+                            reason="thresholds_not_calibrated",
+                        )
+                    await ws.send_text(result.model_dump_json())
+
+    except WebSocketDisconnect:
+        pass
+    except Exception as exc:
+        logger.exception("WebSocket internal error")
+        try:
+            await _send_error(ws, "internal_error", str(exc))
+        except Exception:
+            pass
+
+
+async def _send_error(ws: WebSocket, code: str, message: str) -> None:
+    """Send an error message and close the socket."""
+    err = WsErrorMessage(code=code, message=message)
+    try:
+        await ws.send_text(err.model_dump_json())
+        await ws.close()
+    except Exception:
+        pass
