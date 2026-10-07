@@ -95,6 +95,7 @@ async def stream_audio(audio_path: str, url: str, speed: float) -> int:
                         if msg_type == "result":
                             results.append(data)
                             t_val = data.get("t")
+                            seq_val = data.get("seq")
                             sp_ratio = data.get("speech_ratio")
                             prob = data.get("ai_probability")
                             smoothed = data.get("smoothed_probability")
@@ -114,7 +115,8 @@ async def stream_audio(audio_path: str, url: str, speed: float) -> int:
                             ):
                                 skipped_by_reason[reason] = skipped_by_reason.get(reason, 0) + 1
 
-                            # Print compact line: time, speech ratio, probability, smoothed, verdict, latency, reason
+                            # Print compact line: seq, time, speech ratio, probability, smoothed, verdict, latency, reason
+                            seq_str = f"#{seq_val}" if seq_val is not None else "#N/A"
                             t_str = f"{t_val:.1f}s" if t_val is not None else "N/A"
                             sp_str = f"{sp_ratio:.2f}" if sp_ratio is not None else "N/A"
                             prob_str = f"{prob:.4f}" if prob is not None else "None"
@@ -124,7 +126,7 @@ async def stream_audio(audio_path: str, url: str, speed: float) -> int:
                             reason_str = reason if reason is not None else ""
 
                             print(
-                                f"[{t_str}] speech={sp_str} | prob={prob_str} | "
+                                f"{seq_str} [{t_str}] speech={sp_str} | prob={prob_str} | "
                                 f"smooth={smooth_str} | verdict={verdict_str} | "
                                 f"latency={lat_str} | {reason_str}"
                             )

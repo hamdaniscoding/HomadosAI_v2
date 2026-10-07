@@ -28,6 +28,7 @@ class StreamSession:
         self._sample_rate: int = settings.sample_rate
         self.probabilities: list[float] = []
         self.last_valid_result_at: float | None = None
+        self.seq: int = 0
 
     def ingest(self, pcm_bytes: bytes) -> np.ndarray:
         """Decode PCM bytes, append to buffer, and return the float32 samples."""

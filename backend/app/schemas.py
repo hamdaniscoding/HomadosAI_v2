@@ -44,6 +44,7 @@ class WsStatusMessage(BaseModel):
 class WsResultMessage(BaseModel):
     """Inference result sent once per hop."""
     type: str = "result"
+    seq: int
     t: float
     window_seconds: float
     ai_probability: float | None = None

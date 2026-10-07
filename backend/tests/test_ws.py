@@ -78,6 +78,8 @@ def test_ws_result():
         results = [m for m in messages if m["type"] == "result"]
         assert len(results) >= 1
         r = results[0]
+        assert "seq" in r
+        assert r["seq"] >= 1
         assert r["reason"] == "not_enough_speech"
         assert r["ai_probability"] is None
         assert r["speech_ratio"] == 0.0

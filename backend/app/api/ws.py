@@ -138,6 +138,8 @@ async def stream(ws: WebSocket) -> None:
                     and session.received_seconds - last_result_at >= settings.hop_seconds
                 ):
                     last_result_at = session.received_seconds
+                    session.seq += 1
+                    current_seq = session.seq
                     detector = get_active()
                     window = session.buffer.latest(settings.window_seconds)
 
@@ -148,6 +150,7 @@ async def stream(ws: WebSocket) -> None:
 
                     if speech_ratio < settings.min_speech_ratio:
                         result = WsResultMessage(
+                            seq=current_seq,
                             t=round(session.received_seconds, 2),
                             window_seconds=settings.window_seconds,
                             ai_probability=None,
@@ -157,6 +160,7 @@ async def stream(ws: WebSocket) -> None:
                         await ws.send_text(result.model_dump_json())
                     elif detector is None:
                         result = WsResultMessage(
+                            seq=current_seq,
                             t=round(session.received_seconds, 2),
                             window_seconds=settings.window_seconds,
                             speech_ratio=speech_ratio,
@@ -166,6 +170,7 @@ async def stream(ws: WebSocket) -> None:
                     elif inference_task is not None and not inference_task.done():
                         # Previous prediction still running: skip hop, do not queue
                         result = WsResultMessage(
+                            seq=current_seq,
                             t=round(session.received_seconds, 2),
                             window_seconds=settings.window_seconds,
                             ai_probability=None,
@@ -181,6 +186,7 @@ async def stream(ws: WebSocket) -> None:
                             t_sec: float,
                             sp_ratio: float,
                             sess: StreamSession,
+                            seq_num: int,
                         ) -> None:
                             t0 = time.perf_counter()
                             try:
@@ -226,6 +232,7 @@ async def stream(ws: WebSocket) -> None:
                                     reason = "smoothing_reset" if reset_smoothing else None
 
                                 res = WsResultMessage(
+                                    seq=seq_num,
                                     t=round(t_sec, 2),
                                     window_seconds=settings.window_seconds,
                                     ai_probability=round(ai_prob, 4),
@@ -247,6 +254,7 @@ async def stream(ws: WebSocket) -> None:
                                 session.received_seconds,
                                 speech_ratio,
                                 session,
+                                current_seq,
                             )
                         )
 

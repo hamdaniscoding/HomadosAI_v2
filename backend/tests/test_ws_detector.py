@@ -82,6 +82,7 @@ def test_ws_with_stub_detector(monkeypatch):
         results = [m for m in messages if m["type"] == "result"]
         assert len(results) >= 1
         for r in results:
+            assert "seq" in r
             assert r["ai_probability"] == 0.5
             assert r["latency_ms"] >= 0
             assert r["detector"] == "stub-test-detector"
