@@ -64,3 +64,8 @@ screen3_session_report.png
 # Logs
 *.log
 logs/
+
+# Database and temp
+*.db
+test_temp.db
+package-lock.json
