@@ -207,19 +207,22 @@ def main() -> None:
     elif len(human_files) == 0:
         missing_errors.append(f"Human directory is empty (no supported audio found in '{human_dir}')")
 
-    if not ai_dir.exists():
-        missing_errors.append(f"AI directory does not exist: '{ai_dir}'")
-    elif len(ai_files) == 0:
-        missing_errors.append(f"AI directory is empty (no supported audio found in '{ai_dir}')")
+    human_only_mode = False
+    if not ai_dir.exists() or len(ai_files) == 0:
+        human_only_mode = True
 
     if missing_errors:
         print("=" * 70, file=sys.stderr)
-        print("ERROR: Missing or empty input dataset folders:", file=sys.stderr)
+        print("ERROR: Missing or empty human input dataset folders:", file=sys.stderr)
         for err in missing_errors:
             print(f"  - {err}", file=sys.stderr)
-        print("Please provide legitimate audio files. Synthetic data will not be fabricated.", file=sys.stderr)
         print("=" * 70, file=sys.stderr)
         sys.exit(1)
+        
+    if human_only_mode:
+        print("=" * 70)
+        print("NOTICE: AI folder is missing or empty. Running in HUMAN-ONLY scoring mode.")
+        print("=" * 70)
 
     # Initialize and load detector
     parsed_fake_label: str | int = int(args.fake_label) if args.fake_label.isdigit() else args.fake_label
@@ -237,7 +240,9 @@ def main() -> None:
     rows: list[dict[str, object]] = []
     file_averages: dict[str, dict[str, object]] = {}
 
-    dataset = [("human", human_files), ("ai", ai_files)]
+    dataset = [("human", human_files)]
+    if not human_only_mode:
+        dataset.append(("ai", ai_files))
 
     print(f"Processing audio files (Human: {len(human_files)}, AI: {len(ai_files)})...")
 
@@ -275,6 +280,10 @@ def main() -> None:
                     "label": label_name,
                     "windows": len(scores_for_file),
                     "mean_fake_prob": float(np.mean(scores_for_file)),
+                    "median_fake_prob": float(np.median(scores_for_file)),
+                    "min_fake_prob": float(np.min(scores_for_file)),
+                    "max_fake_prob": float(np.max(scores_for_file)),
+                    "frac_above_05": float(np.mean(np.array(scores_for_file) > 0.5))
                 }
 
     # Write output CSV
@@ -314,11 +323,13 @@ def main() -> None:
         print(f"  ROC AUC:                  {auc:.4f}")
         print(f"  Equal Error Rate (EER):   {eer * 100:.2f}% (threshold = {eer_th:.4f})")
 
-    print("\nPER-FILE AVERAGES:")
+    print("\nPER-FILE METRICS:")
     for fname, info in file_averages.items():
         print(
             f"  [{info['label'].upper()}] {fname}: {info['windows']} win, "
-            f"mean_fake_prob={info['mean_fake_prob']:.4f}"
+            f"mean={info['mean_fake_prob']:.4f}, median={info['median_fake_prob']:.4f}, "
+            f"min={info['min_fake_prob']:.4f}, max={info['max_fake_prob']:.4f}, "
+            f"false-alarm rate at an arbitrary 0.5 threshold={info['frac_above_05']:.4f}"
         )
 
     print("\n" + "-" * 70)
