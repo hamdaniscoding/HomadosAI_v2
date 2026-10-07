@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     sample_rate: int = 16000
     max_session_seconds: int = 3600
     max_frame_bytes: int = 64000
-    torch_device: str = "cpu"
+    torch_device: str = "auto"
     ecapa_source: str = "speechbrain/spkrec-ecapa-voxceleb"
     ecapa_savedir: str = "models/ecapa_tdnn"
     detector_model_id: str | None = None

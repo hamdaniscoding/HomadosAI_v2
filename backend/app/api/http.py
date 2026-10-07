@@ -51,7 +51,11 @@ def health() -> dict[str, Any]:
         python_version=sys.version,
         torch_version=torch_version,
         cuda_available=cuda_available,
-        device=settings.torch_device,
+        device=(
+            ("cuda" if cuda_available else "cpu")
+            if settings.torch_device == "auto"
+            else settings.torch_device
+        ),
         detectors=[
             DetectorStatus(**d) for d in list_detectors()
         ],
