@@ -17,6 +17,19 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    from pydantic import model_validator
+
+    @model_validator(mode="after")
+    def validate_thresholds(self) -> Settings:
+        """Validate that HUMAN < AI when both thresholds are set."""
+        if self.verdict_human_threshold is not None and self.verdict_ai_threshold is not None:
+            if self.verdict_human_threshold >= self.verdict_ai_threshold:
+                raise ValueError(
+                    f"Invalid threshold order: VERDICT_HUMAN_THRESHOLD ({self.verdict_human_threshold}) "
+                    f"must be less than VERDICT_AI_THRESHOLD ({self.verdict_ai_threshold})."
+                )
+        return self
+
     app_env: str = "development"
     cors_origins: str = "*"
     window_seconds: float = 5.0
@@ -29,6 +42,10 @@ class Settings(BaseSettings):
     ecapa_savedir: str = "models/ecapa_tdnn"
     detector_model_id: str | None = None
     detector_fake_label: str | None = None
+    min_speech_ratio: float = 0.5
+    smoothing_window: int = 5
+    verdict_ai_threshold: float | None = None
+    verdict_human_threshold: float | None = None
 
     @property
     def DETECTOR_MODEL_ID(self) -> str | None:

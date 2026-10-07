@@ -52,6 +52,7 @@ class WsResultMessage(BaseModel):
     latency_ms: float | None = None
     detector: str | None = None
     reason: str | None = None
+    speech_ratio: float | None = None
 
 
 class WsErrorMessage(BaseModel):

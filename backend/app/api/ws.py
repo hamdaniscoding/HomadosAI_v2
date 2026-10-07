@@ -128,6 +128,7 @@ async def stream(ws: WebSocket) -> None:
                     last_status_at = session.received_seconds
                     status = WsStatusMessage(
                         received_seconds=round(session.received_seconds, 2),
+                        speech_seconds=round(session.speech_seconds, 2),
                         needed_seconds=settings.window_seconds,
                     )
                     await ws.send_text(status.model_dump_json())
@@ -140,10 +141,25 @@ async def stream(ws: WebSocket) -> None:
                     detector = get_active()
                     window = session.buffer.latest(settings.window_seconds)
 
-                    if detector is None:
+                    from app.core.vad import measure_speech_seconds
+
+                    window_speech_sec = measure_speech_seconds(window, settings.sample_rate)
+                    speech_ratio = round(window_speech_sec / settings.window_seconds, 4)
+
+                    if speech_ratio < settings.min_speech_ratio:
                         result = WsResultMessage(
                             t=round(session.received_seconds, 2),
                             window_seconds=settings.window_seconds,
+                            ai_probability=None,
+                            speech_ratio=speech_ratio,
+                            reason="not_enough_speech",
+                        )
+                        await ws.send_text(result.model_dump_json())
+                    elif detector is None:
+                        result = WsResultMessage(
+                            t=round(session.received_seconds, 2),
+                            window_seconds=settings.window_seconds,
+                            speech_ratio=speech_ratio,
                             reason="no_detector_loaded",
                         )
                         await ws.send_text(result.model_dump_json())
@@ -154,32 +170,84 @@ async def stream(ws: WebSocket) -> None:
                             window_seconds=settings.window_seconds,
                             ai_probability=None,
                             detector=detector.name,
+                            speech_ratio=speech_ratio,
                             reason="detector_busy",
                         )
                         await ws.send_text(result.model_dump_json())
                     else:
-                        async def _run_inference(det, win, t_sec: float) -> None:
+                        async def _run_inference(
+                            det,
+                            win,
+                            t_sec: float,
+                            sp_ratio: float,
+                            sess: StreamSession,
+                        ) -> None:
                             t0 = time.perf_counter()
                             try:
                                 ai_prob = await asyncio.to_thread(det.predict, win)
                                 latency = (time.perf_counter() - t0) * 1000
                                 set_last_inference_ms(latency)
+
+                                reset_smoothing = False
+                                if (
+                                    sess.last_valid_result_at is not None
+                                    and (t_sec - sess.last_valid_result_at) > 10.0
+                                ):
+                                    sess.probabilities.clear()
+                                    reset_smoothing = True
+
+                                sess.probabilities.append(float(ai_prob))
+                                if len(sess.probabilities) > settings.smoothing_window:
+                                    sess.probabilities = sess.probabilities[-settings.smoothing_window:]
+                                sess.last_valid_result_at = t_sec
+
+                                import statistics
+
+                                smoothed_val = round(float(statistics.median(sess.probabilities)), 4)
+
+                                # Verdict determination
+                                if (
+                                    settings.verdict_ai_threshold is None
+                                    or settings.verdict_human_threshold is None
+                                ):
+                                    verdict = None
+                                    reason = (
+                                        "smoothing_reset"
+                                        if reset_smoothing
+                                        else "thresholds_not_calibrated"
+                                    )
+                                else:
+                                    if smoothed_val >= settings.verdict_ai_threshold:
+                                        verdict = "ai"
+                                    elif smoothed_val <= settings.verdict_human_threshold:
+                                        verdict = "human"
+                                    else:
+                                        verdict = "uncertain"
+                                    reason = "smoothing_reset" if reset_smoothing else None
+
                                 res = WsResultMessage(
                                     t=round(t_sec, 2),
                                     window_seconds=settings.window_seconds,
                                     ai_probability=round(ai_prob, 4),
-                                    verdict=None,
-                                    smoothed_probability=None,
+                                    verdict=verdict,
+                                    smoothed_probability=smoothed_val,
                                     latency_ms=round(latency, 2),
                                     detector=det.name,
-                                    reason="thresholds_not_calibrated",
+                                    speech_ratio=sp_ratio,
+                                    reason=reason,
                                 )
                                 await ws.send_text(res.model_dump_json())
                             except Exception as e:
                                 logger.exception("Detector inference error: %s", e)
 
                         inference_task = asyncio.create_task(
-                            _run_inference(detector, window, session.received_seconds)
+                            _run_inference(
+                                detector,
+                                window,
+                                session.received_seconds,
+                                speech_ratio,
+                                session,
+                            )
                         )
 
     except WebSocketDisconnect:

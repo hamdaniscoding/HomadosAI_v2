@@ -48,8 +48,11 @@ def _pcm_silence(seconds: float) -> bytes:
     return b"\x00\x00" * n_samples
 
 
-def test_ws_with_stub_detector():
+def test_ws_with_stub_detector(monkeypatch):
     """Register a stub detector, stream audio, verify results carry ai_probability=0.5."""
+    import app.core.vad as vad_module
+    monkeypatch.setattr(vad_module, "measure_speech_seconds", lambda s, sr=16000: len(s) / sr)
+
     detector = _StubDetector()
     registry.register(detector)
 
@@ -110,10 +113,13 @@ class _SlowStubDetector:
         return 0.88
 
 
-def test_ws_with_slow_stub_detector():
+def test_ws_with_slow_stub_detector(monkeypatch):
     """Verify (a) status messages continue arriving while detector runs;
     (b) while detector is busy, the next hop yields reason 'detector_busy'.
     """
+    import app.core.vad as vad_module
+    monkeypatch.setattr(vad_module, "measure_speech_seconds", lambda s, sr=16000: len(s) / sr)
+
     detector = _SlowStubDetector()
     registry.register(detector)
 

@@ -7,3 +7,4 @@ torch>=2.2.0
 torchaudio>=2.2.0
 speechbrain>=1.0.0
 transformers>=4.40.0
+silero-vad>=5.1.0

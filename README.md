@@ -44,7 +44,7 @@ Endpoint: `ws://host:port/api/v1/ws/stream`
 1. Client sends `{"type":"start","sample_rate":16000,"channels":1,"encoding":"pcm_s16le","mode":"single"}`
 2. Server replies `{"type":"ready","session_id":"...","window_seconds":5.0,"hop_seconds":1.0,"detector":null}`
 3. Client sends binary frames of raw signed 16-bit little-endian PCM
-4. Server sends `{"type":"status",...}` every 0.5 s and `{"type":"result",...}` every 1 s (once 5 s of audio exist)
+4. Server sends `{"type":"status",...,"speech_seconds":...}` every 0.5 s and `{"type":"result",...,"speech_ratio":...}` every 1 s (once 5 s of audio exist)
 5. Client sends `{"type":"stop"}` to end
 
 ## Install

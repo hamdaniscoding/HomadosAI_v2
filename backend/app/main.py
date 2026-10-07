@@ -38,6 +38,8 @@ def init_detector() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Validate settings at startup (e.g., VERDICT_HUMAN_THRESHOLD < VERDICT_AI_THRESHOLD)
+    _ = get_settings()
     init_detector()
     yield
 

@@ -24,11 +24,18 @@ class StreamSession:
             sample_rate=settings.sample_rate,
         )
         self.received_seconds: float = 0.0
+        self.speech_seconds: float = 0.0
         self._sample_rate: int = settings.sample_rate
+        self.probabilities: list[float] = []
+        self.last_valid_result_at: float | None = None
 
     def ingest(self, pcm_bytes: bytes) -> np.ndarray:
         """Decode PCM bytes, append to buffer, and return the float32 samples."""
+        from app.core.vad import measure_speech_seconds
+
         samples = pcm16_to_float32(pcm_bytes)
         self.buffer.append(samples)
         self.received_seconds += len(samples) / self._sample_rate
+        chunk_speech = measure_speech_seconds(samples, self._sample_rate)
+        self.speech_seconds += chunk_speech
         return samples

@@ -78,8 +78,9 @@ def test_ws_result():
         results = [m for m in messages if m["type"] == "result"]
         assert len(results) >= 1
         r = results[0]
-        assert r["reason"] == "no_detector_loaded"
+        assert r["reason"] == "not_enough_speech"
         assert r["ai_probability"] is None
+        assert r["speech_ratio"] == 0.0
 
 
 def test_ws_missing_start():
