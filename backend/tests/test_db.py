@@ -6,8 +6,10 @@ import time
 from datetime import datetime, timezone
 
 def test_db_logging():
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = os.path.join(tmpdir, "test.db")
+    db_path = "test_temp.db"
+    if os.path.exists(db_path):
+        os.remove(db_path)
+    try:
         logger = SessionLogger(db_path, enabled=True)
         
         session_id = "test-session-123"
@@ -37,3 +39,13 @@ def test_db_logging():
         assert session_data["session"]["id"] == session_id
         assert len(session_data["results"]) == 1
         assert session_data["results"][0]["seq"] == 1
+        
+        logger._stop_event.set()
+        if logger._worker_thread:
+            logger._worker_thread.join()
+    finally:
+        if os.path.exists(db_path):
+            try:
+                os.remove(db_path)
+            except Exception:
+                pass
