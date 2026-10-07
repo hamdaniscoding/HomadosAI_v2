@@ -40,8 +40,8 @@ class Settings(BaseSettings):
     torch_device: str = "auto"
     ecapa_source: str = "speechbrain/spkrec-ecapa-voxceleb"
     ecapa_savedir: str = "models/ecapa_tdnn"
-    detector_model_id: str | None = None
-    detector_fake_label: str | None = None
+    detector_model_id: str | None = "Gustking/wav2vec2-large-xlsr-deepfake-audio-classification"
+    detector_fake_label: str | None = "fake"
     min_speech_ratio: float = 0.5
     smoothing_window: int = 5
     verdict_ai_threshold: float | None = None

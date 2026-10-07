@@ -1,0 +1,116 @@
+{
+  "summary": [
+    {
+      "model": "A",
+      "condition": "bandpass",
+      "win_auc": 0.1505807522123894,
+      "win_eer": 0.8125,
+      "file_auc": 0.1875,
+      "windows_human": 128,
+      "windows_ai": 113,
+      "files_human": 4,
+      "files_ai": 4,
+      "tool_counts": {
+        "unknown": 113
+      }
+    },
+    {
+      "model": "A",
+      "condition": "bandpass_mulaw",
+      "win_auc": 0.13239767699115043,
+      "win_eer": 0.8203125,
+      "file_auc": 0.1875,
+      "windows_human": 128,
+      "windows_ai": 113,
+      "files_human": 4,
+      "files_ai": 4,
+      "tool_counts": {
+        "unknown": 113
+      }
+    },
+    {
+      "model": "A",
+      "condition": "original",
+      "win_auc": 0.07065818584070796,
+      "win_eer": 0.8984375,
+      "file_auc": 0.125,
+      "windows_human": 128,
+      "windows_ai": 113,
+      "files_human": 4,
+      "files_ai": 4,
+      "tool_counts": {
+        "unknown": 113
+      }
+    },
+    {
+      "model": "B",
+      "condition": "bandpass",
+      "win_auc": 0.43176161504424776,
+      "win_eer": 0.5546875,
+      "file_auc": 0.25,
+      "windows_human": 128,
+      "windows_ai": 113,
+      "files_human": 4,
+      "files_ai": 4,
+      "tool_counts": {
+        "unknown": 113
+      }
+    },
+    {
+      "model": "B",
+      "condition": "bandpass_mulaw",
+      "win_auc": 0.41793418141592925,
+      "win_eer": 0.578125,
+      "file_auc": 0.25,
+      "windows_human": 128,
+      "windows_ai": 113,
+      "files_human": 4,
+      "files_ai": 4,
+      "tool_counts": {
+        "unknown": 113
+      }
+    },
+    {
+      "model": "B",
+      "condition": "original",
+      "win_auc": 0.6372027101769911,
+      "win_eer": 0.390625,
+      "file_auc": 0.5625,
+      "windows_human": 128,
+      "windows_ai": 113,
+      "files_human": 4,
+      "files_ai": 4,
+      "tool_counts": {
+        "unknown": 113
+      }
+    }
+  ],
+  "variance_diagnosis": {
+    "A": {
+      "corr_rms": 0.4451265167485662,
+      "corr_speech": -0.1803677676900848,
+      "ai_below_0.1_count": 147,
+      "ai_below_0.1_mean_speech_ratio": 0.9027510204081635,
+      "ai_above_0.9_count": 178,
+      "ai_above_0.9_mean_speech_ratio": 0.8946112359550561,
+      "std_by_window_len": {
+        "3": 0.43521625597954405,
+        "5": 0.41386784344071176,
+        "10": 0.40075167779729054
+      }
+    },
+    "B": {
+      "corr_rms": 0.1645996882024141,
+      "corr_speech": 0.16606636411471273,
+      "ai_below_0.1_count": 46,
+      "ai_below_0.1_mean_speech_ratio": 0.8696695652173914,
+      "ai_above_0.9_count": 0,
+      "ai_above_0.9_mean_speech_ratio": 0.0,
+      "std_by_window_len": {
+        "3": 0.2460898956960417,
+        "5": 0.19802833006535012,
+        "10": 0.15425606094448338
+      }
+    }
+  }
+}
