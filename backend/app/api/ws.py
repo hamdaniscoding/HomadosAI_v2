@@ -34,6 +34,7 @@ async def stream(ws: WebSocket) -> None:
     last_result_at: float = 0.0
     started = False
     inference_task: asyncio.Task | None = None
+    speaker_inference_tasks: dict[int, asyncio.Task] = {}
 
     try:
         while True:
@@ -158,6 +159,46 @@ async def stream(ws: WebSocket) -> None:
                     window_speech_sec = measure_speech_seconds(window, settings.sample_rate)
                     speech_ratio = round(window_speech_sec / settings.window_seconds, 4)
 
+
+                    # --- Speaker Inference ---
+                    from app.schemas import SpeakerInfo
+                    
+                    async def _run_speaker_inference(det, spk):
+                        try:
+                            ai_prob = await asyncio.to_thread(det.predict, spk.buffer)
+                            spk.probabilities.append(float(ai_prob))
+                            if len(spk.probabilities) > settings.smoothing_window:
+                                spk.probabilities = spk.probabilities[-settings.smoothing_window:]
+                            import statistics
+                            spk.smoothed_probability = round(float(statistics.median(spk.probabilities)), 4)
+                            spk.ai_probability = round(float(ai_prob), 4)
+                            spk.reason = None
+                        except Exception as e:
+                            spk.reason = f"error: {e}"
+                            
+                    if detector is not None:
+                        for spk in session.diarizer.speakers:
+                            if spk.speech_seconds >= 3.0:
+                                task = speaker_inference_tasks.get(spk.id)
+                                if task is None or task.done():
+                                    spk.reason = None
+                                    speaker_inference_tasks[spk.id] = asyncio.create_task(
+                                        _run_speaker_inference(detector, spk)
+                                    )
+                                else:
+                                    spk.reason = "detector_busy"
+                                    
+                    def _get_speakers_info():
+                        return [
+                            SpeakerInfo(
+                                id=s.id,
+                                speech_seconds=round(s.speech_seconds, 2),
+                                ai_probability=s.ai_probability,
+                                smoothed_probability=s.smoothed_probability,
+                                reason=s.reason
+                            ) for s in session.diarizer.speakers
+                        ]
+                    
                     if speech_ratio < settings.min_speech_ratio:
                         result = WsResultMessage(
                             seq=current_seq,
@@ -166,6 +207,8 @@ async def stream(ws: WebSocket) -> None:
                             ai_probability=None,
                             speech_ratio=speech_ratio,
                             reason="not_enough_speech",
+                            active_speaker=session.diarizer.active_speaker_id,
+                            speakers=_get_speakers_info(),
                         )
                         get_db_logger().log_result(session.session_id, result.model_dump())
                         await ws.send_text(result.model_dump_json())
@@ -176,6 +219,8 @@ async def stream(ws: WebSocket) -> None:
                             window_seconds=settings.window_seconds,
                             speech_ratio=speech_ratio,
                             reason="no_detector_loaded",
+                            active_speaker=session.diarizer.active_speaker_id,
+                            speakers=_get_speakers_info(),
                         )
                         get_db_logger().log_result(session.session_id, result.model_dump())
                         await ws.send_text(result.model_dump_json())
@@ -189,6 +234,8 @@ async def stream(ws: WebSocket) -> None:
                             detector=detector.name,
                             speech_ratio=speech_ratio,
                             reason="detector_busy",
+                            active_speaker=session.diarizer.active_speaker_id,
+                            speakers=_get_speakers_info(),
                         )
                         get_db_logger().log_result(session.session_id, result.model_dump())
                         await ws.send_text(result.model_dump_json())
@@ -255,6 +302,16 @@ async def stream(ws: WebSocket) -> None:
                                     detector=det.name,
                                     speech_ratio=sp_ratio,
                                     reason=reason,
+                                    active_speaker=sess.diarizer.active_speaker_id,
+                                    speakers=[
+                                        SpeakerInfo(
+                                            id=s.id,
+                                            speech_seconds=round(s.speech_seconds, 2),
+                                            ai_probability=s.ai_probability,
+                                            smoothed_probability=s.smoothed_probability,
+                                            reason=s.reason
+                                        ) for s in sess.diarizer.speakers
+                                    ]
                                 )
                                 from app.core.db import get_db_logger
                                 get_db_logger().log_result(sess.session_id, res.model_dump())

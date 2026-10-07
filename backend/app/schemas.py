@@ -41,6 +41,14 @@ class WsStatusMessage(BaseModel):
     needed_seconds: float
 
 
+class SpeakerInfo(BaseModel):
+    id: int
+    speech_seconds: float
+    ai_probability: float | None = None
+    smoothed_probability: float | None = None
+    reason: str | None = None
+
+
 class WsResultMessage(BaseModel):
     """Inference result sent once per hop."""
     type: str = "result"
@@ -54,6 +62,8 @@ class WsResultMessage(BaseModel):
     detector: str | None = None
     reason: str | None = None
     speech_ratio: float | None = None
+    active_speaker: int | None = None
+    speakers: list[SpeakerInfo] | None = None
 
 
 class WsErrorMessage(BaseModel):

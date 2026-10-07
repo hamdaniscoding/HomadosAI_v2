@@ -41,7 +41,9 @@ class EcapaEncoder:
             savedir = str(settings.ecapa_dir)
             settings.ecapa_dir.mkdir(parents=True, exist_ok=True)
             device = settings.torch_device
-            if device.startswith("cuda") and not torch.cuda.is_available():
+            if device == "auto":
+                device = "cuda" if torch.cuda.is_available() else "cpu"
+            elif device.startswith("cuda") and not torch.cuda.is_available():
                 device = "cpu"
             self._model = EncoderClassifier.from_hparams(
                 source=settings.ecapa_source,

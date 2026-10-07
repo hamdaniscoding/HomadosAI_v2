@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     detector_model_id: str | None = "Gustking/wav2vec2-large-xlsr-deepfake-audio-classification"
     detector_fake_label: str | None = "fake"
     min_speech_ratio: float = 0.5
+    diarization_threshold: float = 0.6
     smoothing_window: int = 5
     verdict_ai_threshold: float | None = None
     verdict_human_threshold: float | None = None
