@@ -89,6 +89,16 @@ async def stream(ws: WebSocket) -> None:
                         hop_seconds=settings.hop_seconds,
                         detector=detector.name if detector else None,
                     )
+                    
+                    from app.core.db import get_db_logger
+                    db_logger = get_db_logger()
+                    db_logger.log_session_start(
+                        session_id=session.session_id,
+                        started_at=session.start_time,
+                        detector=detector.name if detector else None,
+                        device=settings.torch_device
+                    )
+                    
                     await ws.send_text(ready.model_dump_json())
                     continue
 
@@ -157,6 +167,7 @@ async def stream(ws: WebSocket) -> None:
                             speech_ratio=speech_ratio,
                             reason="not_enough_speech",
                         )
+                        get_db_logger().log_result(session.session_id, result.model_dump())
                         await ws.send_text(result.model_dump_json())
                     elif detector is None:
                         result = WsResultMessage(
@@ -166,6 +177,7 @@ async def stream(ws: WebSocket) -> None:
                             speech_ratio=speech_ratio,
                             reason="no_detector_loaded",
                         )
+                        get_db_logger().log_result(session.session_id, result.model_dump())
                         await ws.send_text(result.model_dump_json())
                     elif inference_task is not None and not inference_task.done():
                         # Previous prediction still running: skip hop, do not queue
@@ -178,6 +190,7 @@ async def stream(ws: WebSocket) -> None:
                             speech_ratio=speech_ratio,
                             reason="detector_busy",
                         )
+                        get_db_logger().log_result(session.session_id, result.model_dump())
                         await ws.send_text(result.model_dump_json())
                     else:
                         async def _run_inference(
@@ -243,6 +256,8 @@ async def stream(ws: WebSocket) -> None:
                                     speech_ratio=sp_ratio,
                                     reason=reason,
                                 )
+                                from app.core.db import get_db_logger
+                                get_db_logger().log_result(sess.session_id, res.model_dump())
                                 await ws.send_text(res.model_dump_json())
                             except Exception as e:
                                 logger.exception("Detector inference error: %s", e)
@@ -266,6 +281,16 @@ async def stream(ws: WebSocket) -> None:
             await _send_error(ws, "internal_error", str(exc))
         except Exception:
             pass
+    finally:
+        if session is not None:
+            from app.core.db import get_db_logger
+            from datetime import datetime, timezone
+            get_db_logger().log_session_end(
+                session_id=session.session_id,
+                ended_at=datetime.now(timezone.utc),
+                received_seconds=session.received_seconds,
+                result_count=session.seq
+            )
 
 
 async def _send_error(ws: WebSocket, code: str, message: str) -> None:

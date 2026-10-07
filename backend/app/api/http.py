@@ -135,3 +135,19 @@ async def enroll(file: UploadFile = File(...)) -> dict[str, Any]:
         dim=len(embedding),
         embedding=embedding,
     ).model_dump()
+
+@router.get("/sessions")
+def list_sessions(limit: int = 50) -> dict[str, Any]:
+    from app.core.db import get_db_logger
+    db = get_db_logger()
+    return {"sessions": db.get_latest_sessions(limit=limit)}
+
+@router.get("/sessions/{session_id}")
+def get_session(session_id: str) -> dict[str, Any]:
+    from app.core.db import get_db_logger
+    db = get_db_logger()
+    session_data = db.get_session(session_id)
+    if not session_data:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return session_data
+

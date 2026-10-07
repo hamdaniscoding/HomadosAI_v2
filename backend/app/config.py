@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     smoothing_window: int = 5
     verdict_ai_threshold: float | None = None
     verdict_human_threshold: float | None = None
+    session_log_enabled: bool = True
+    session_db_path: str = "data/sessions.db"
 
     @property
     def DETECTOR_MODEL_ID(self) -> str | None:
