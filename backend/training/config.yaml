@@ -1,0 +1,13 @@
+model_id: "facebook/wav2vec2-base"
+freeze_feature_encoder: true
+batch_size: 4
+gradient_accumulation_steps: 4
+learning_rate: 1e-4
+num_epochs: 2
+mixed_precision: true
+gradient_checkpointing: false
+crop_min_sec: 4.0
+crop_max_sec: 5.0
+patience: 3
+checkpoints_dir: "models/checkpoints"
+log_csv: "models/checkpoints/training_log.csv"

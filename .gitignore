@@ -69,3 +69,6 @@ logs/
 *.db
 test_temp.db
 package-lock.json
+
+# Training checkpoints
+models/checkpoints/
