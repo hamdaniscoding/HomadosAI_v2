@@ -10,25 +10,32 @@ ROOT = Path(__file__).resolve().parents[1]
 def make_manifest(data_dir: Path, out_csv: Path):
     records = []
     
-    # Expected layout: data/<dataset>/{human,ai}/<speaker_id_or_other_structure>/...
     for ext in ["**/*.wav", "**/*.mp3", "**/*.flac", "**/*.ogg", "**/*.m4a", "**/*.opus"]:
         for file_path in data_dir.glob(ext):
             try:
                 rel_parts = file_path.relative_to(data_dir).parts
-                if len(rel_parts) < 3:
+                if len(rel_parts) < 2:
                     continue
                 
                 # Check if it's the AI generation folder (data/ai/<tool>/<voice>/)
                 if rel_parts[0] == "ai":
-                    dataset = rel_parts[1]
+                    dataset = rel_parts[1] if len(rel_parts) > 1 else "unknown"
                     cls_name = "ai"
-                    speaker_id = rel_parts[2]
+                    speaker_id = rel_parts[2] if len(rel_parts) > 2 else "unknown"
+                elif rel_parts[0] == "human":
+                    dataset = "human"
+                    cls_name = "human"
+                    speaker_id = rel_parts[1] if len(rel_parts) > 1 else "unknown"
+                elif rel_parts[0] == "augmented":
+                    dataset = rel_parts[1]
+                    cls_name = "human"
+                    speaker_id = rel_parts[2] if len(rel_parts) > 2 else "unknown"
                 else:
                     dataset = rel_parts[0]
-                    cls_name = rel_parts[1].lower()
+                    cls_name = rel_parts[1].lower() if len(rel_parts) > 1 else "unknown"
                     if cls_name not in ["human", "ai"]:
                         continue
-                    speaker_id = rel_parts[2]
+                    speaker_id = rel_parts[2] if len(rel_parts) > 2 else "unknown"
                 
                 label = 1 if cls_name == "ai" else 0
                 
