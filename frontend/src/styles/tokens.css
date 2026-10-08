@@ -1,0 +1,14 @@
+:root {
+  --color-bg: #F3EEE8;
+  --color-ink: #111;
+  --color-muted: #5c5b57;
+  --color-muted-light: #6B6A66;
+  --color-muted-lighter: #7a7771;
+  --color-brand: #FF5A00;
+  --color-brand-light: #FF8A3D;
+  --color-brand-deep: #D43F00;
+  --color-brand-dark: #C23A00;
+  --color-dot: #CDB9A8;
+  --color-panel-start: #1b1714;
+  --color-panel-end: #0d0b0a;
+}

@@ -4,15 +4,13 @@ Real-time AI-generated voice detection over WebSocket audio streams.
 
 ## Current status
 
-**Detector not yet trained or loaded.** The backend provides:
+**Research Preview:** The model is still being trained and its scores have not been validated for production use.
+The backend provides:
 
-- A WebSocket endpoint that receives live PCM audio and scores each 5-second
-  window once per second using a pluggable detector interface.
-- An HTTP endpoint for file-based analysis.
-- ECAPA-TDNN speaker embedding via SpeechBrain (optional, requires PyTorch).
-
-Until a trained detector is registered, all results return
-`{"verdict": null, "reason": "no_detector_loaded"}`.
+- A WebSocket endpoint that receives live PCM audio and scores each 5-second window once per second.
+- Automatic speaker separation to track multiple speakers on a call independently.
+- HTTP endpoints for session history (`GET /api/v1/sessions`).
+- All audio is analyzed in memory and is never written to disk. Session scores and metadata are stored only if requested.
 
 ## Architecture
 
@@ -21,46 +19,38 @@ backend/app/
 ├── main.py                 FastAPI app factory, CORS, static SPA serving
 ├── config.py               pydantic-settings configuration
 ├── schemas.py              Pydantic models for HTTP and WebSocket messages
-├── features.py             Raw librosa feature extraction
 ├── api/
-│   ├── http.py             GET /healthz, /api/v1/health, POST /analyze, /enroll
-│   └── ws.py               WebSocket /api/v1/ws/stream
+│   ├── http.py             GET /healthz, /api/v1/health, GET /sessions, DELETE /sessions
+│   └── ws.py               WebSocket /api/v1/ws
 ├── core/
 │   ├── audio.py            Audio decoding and PCM conversion
 │   └── buffer.py           Thread-safe rolling audio buffer
-├── detectors/
-│   ├── base.py             Detector protocol interface
-│   └── registry.py         Register, list, and retrieve detectors
-├── speaker/
-│   └── ecapa.py            ECAPA-TDNN encoder with lazy loading
 └── session/
     └── stream_session.py   WebSocket session state
+
+frontend/src/
+├── App.tsx                 Main React component and Router
+├── components/             TopBar, BackgroundField UI pieces
+├── lib/
+│   └── stream.ts           AudioWorklet capture and WebSocket client state machine
+├── pages/                  Home, History, HowItWorks, About
+└── styles/                 Global CSS, variables
 ```
 
-## WebSocket protocol
-
-Endpoint: `ws://host:port/api/v1/ws/stream`
-
-1. Client sends `{"type":"start","sample_rate":16000,"channels":1,"encoding":"pcm_s16le","mode":"single"}`
-2. Server replies `{"type":"ready","session_id":"...","window_seconds":5.0,"hop_seconds":1.0,"detector":null}`
-3. Client sends binary frames of raw signed 16-bit little-endian PCM
-4. Server sends `{"type":"status",...,"speech_seconds":...}` every 0.5 s and `{"type":"result",...,"seq":1,"speech_ratio":...,"active_speaker":0,"speakers":[{"id":0,"speech_seconds":3.5,"ai_probability":0.8,"smoothed_probability":0.7,"reason":null}]}` every 1 s (once 5 s of audio exist)
-5. Client sends `{"type":"stop"}` to end
-
 ## Setup & Development
+
+### Environment Variables
+For backend, set `TORCH_DEVICE=cpu` to force CPU inference (recommended for development without CUDA).
 
 ### Backend
 ```bash
 python -m venv .venv
-.venv/Scripts/activate    # Windows
+.venv\Scripts\activate    # Windows
 pip install -r backend/requirements.txt
-
-# Optional: for ECAPA speaker embeddings
 pip install -r backend/requirements-ml.txt
-python scripts/download_pretrained.py --ecapa
 
 # Run backend
-uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
+TORCH_DEVICE=cpu uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
 ```
 API docs at `http://127.0.0.1:8000/docs`.
 
@@ -72,21 +62,33 @@ npm ci
 npm run dev
 ```
 
+Alternatively, use the PowerShell script to run both in development:
+```powershell
+.\scripts\run_dev.ps1 -Device cpu
+```
+
 ### Production Build
 ```bash
 cd frontend
+npm ci
 npm run build
 cd ..
-uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
+uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port 8000
 ```
-FastAPI serves the built frontend (`frontend/dist`) at `/`.
+FastAPI automatically serves the built frontend (`frontend/dist`) at `/`. The `Dockerfile` and `render.yaml` are also configured for deployment.
 
 ## Test
 
+**Backend tests:**
 ```bash
-pip install -r backend/requirements-dev.txt
-cd backend
-pytest -q
+pytest backend
+```
+
+**Frontend tests:**
+```bash
+cd frontend
+npm run test
+npx playwright test
 ```
 
 ## API
@@ -95,6 +97,7 @@ pytest -q
 |--------|------|--------|
 | GET | `/healthz` | Lightweight health check |
 | GET | `/api/v1/health` | Detailed system status |
-| POST | `/api/v1/analyze` | Upload audio file for analysis |
-| POST | `/api/v1/enroll` | Get ECAPA speaker embedding |
-| WS | `/api/v1/ws/stream` | Real-time audio streaming |
+| GET | `/api/v1/sessions` | Fetch session history |
+| GET | `/api/v1/sessions/{id}` | Fetch specific session scores |
+| DELETE | `/api/v1/sessions/{id}` | Delete a session |
+| WS | `/api/v1/ws` | Real-time audio streaming |

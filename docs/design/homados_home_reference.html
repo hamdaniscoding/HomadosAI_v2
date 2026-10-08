@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Homados AI home</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&amp;family=Instrument+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F3EEE8}
+@keyframes ring{0%{transform:scale(.8);opacity:.55}100%{transform:scale(1.9);opacity:0}}
+@keyframes drift{from{background-position:0 0}to{background-position:22px 22px}}
+@keyframes rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+@keyframes sheen{0%{transform:translateX(-120%)}60%,100%{transform:translateX(240%)}}
+@keyframes w1{0%{transform:translate(0,0) scale(1)}25%{transform:translate(620px,180px) scale(1.15)}50%{transform:translate(780px,640px) scale(.95)}75%{transform:translate(220px,820px) scale(1.1)}100%{transform:translate(0,0) scale(1)}}
+@keyframes w2{0%{transform:translate(0,0) scale(1)}25%{transform:translate(-700px,360px) scale(1.1)}50%{transform:translate(-420px,860px) scale(.92)}75%{transform:translate(-880px,200px) scale(1.12)}100%{transform:translate(0,0) scale(1)}}
+@keyframes w3{0%{transform:translate(0,0) scale(1)}25%{transform:translate(-560px,-520px) scale(1.12)}50%{transform:translate(300px,-700px) scale(.95)}75%{transform:translate(640px,-260px) scale(1.1)}100%{transform:translate(0,0) scale(1)}}
+@keyframes blobA{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(60px,40px) scale(1.12)}}
+@keyframes blobB{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-70px,30px) scale(1.15)}}
+@keyframes orb{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+@keyframes glint{0%{background-position:160% 0}100%{background-position:-60% 0}}
+@keyframes shine{0%{background-position:0% 50%}100%{background-position:200% 50%}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.r1{animation:ring 4.5s ease-out infinite}.r2{animation:ring 4.5s ease-out 1.5s infinite}.r3{animation:ring 4.5s ease-out 3s infinite}
+.dots{animation:drift 20s linear infinite}
+.bA{animation:blobA 16s ease-in-out infinite}.bB{animation:blobB 19s ease-in-out infinite}
+.orb{animation:orb 3.6s ease-in-out infinite}
+.i1{animation:rise 1s cubic-bezier(.2,.7,.2,1) both}.i2{animation:rise 1s cubic-bezier(.2,.7,.2,1) .15s both}.i3{animation:rise 1s cubic-bezier(.2,.7,.2,1) .3s both}.i4{animation:rise 1s cubic-bezier(.2,.7,.2,1) .45s both}.i5{animation:rise 1s cubic-bezier(.2,.7,.2,1) .6s both}
+.gloss{font-weight:400;font-style:italic;background:linear-gradient(100deg,#FF9A4D 0%,#FF5A00 28%,#C23A00 55%,#FF7A2B 78%,#FFB27A 100%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-stroke:1.6px rgba(255,90,0,.55);filter:drop-shadow(0 2px 0 #A83300) drop-shadow(0 6px 0 rgba(120,30,0,.35)) drop-shadow(0 18px 22px rgba(255,90,0,.38));animation:shine 5s linear infinite}
+.cta{position:relative;overflow:hidden;transition:transform .25s,box-shadow .25s}
+.cta:hover{transform:translateY(-2px);box-shadow:0 18px 40px rgba(255,90,0,.42),inset 0 1px 0 rgba(255,255,255,.5)}
+.cta .sh{position:absolute;top:0;left:0;width:35%;height:100%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.55),transparent);animation:sheen 3.6s ease-in-out infinite}
+.glass{background:linear-gradient(145deg,rgba(255,255,255,.62),rgba(255,255,255,.28));-webkit-backdrop-filter:blur(22px) saturate(160%);backdrop-filter:blur(22px) saturate(160%);border:1px solid rgba(255,255,255,.75);box-shadow:0 10px 40px rgba(120,60,20,.10),inset 0 1px 0 rgba(255,255,255,.9)}
+.card{transition:transform .3s,box-shadow .3s,border-color .3s}
+.card:hover{transform:translateY(-5px);border-color:rgba(255,90,0,.45);box-shadow:0 22px 50px rgba(255,90,0,.16),inset 0 1px 0 rgba(255,255,255,.9)}
+.bar{background:linear-gradient(180deg,rgba(255,255,255,.78),rgba(255,255,255,.34));-webkit-backdrop-filter:blur(30px) saturate(190%);backdrop-filter:blur(30px) saturate(190%);border:1px solid rgba(255,255,255,.85);box-shadow:0 12px 32px rgba(120,60,20,.14),0 2px 6px rgba(120,60,20,.08),inset 0 1.5px 0 rgba(255,255,255,1),inset 0 -1px 0 rgba(255,255,255,.4)}
+.tab{padding:9px 18px;border-radius:999px;color:#5c5b57;font-weight:500;transition:background .25s,color .25s,box-shadow .25s}
+.tab:hover{background:rgba(255,255,255,.55);color:#111}
+.tab.on{color:#111;font-weight:600;background:linear-gradient(180deg,#fff,rgba(255,255,255,.7));box-shadow:0 3px 10px rgba(120,60,20,.14),inset 0 1px 0 #fff}
+.brand{background:linear-gradient(180deg,#4a443e 0%,#111 48%,#2b2621 100%);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-stroke:.7px #111;filter:drop-shadow(0 1px 0 rgba(255,255,255,.95)) drop-shadow(0 7px 10px rgba(120,60,20,.20))}
+.brandai{background:linear-gradient(180deg,#FFB27A 0%,#FF5A00 50%,#C23A00 100%);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-stroke:.7px #E04E00}
+.live{animation:blink 1.6s ease-in-out infinite}
+a{color:#6B6A66;text-decoration:none}a:hover{color:#FF5A00}
+</style>
+</helmet>
+<div style="position:relative;overflow:hidden;min-height:1300px;background:#F3EEE8;color:#111;font-family:'Instrument Sans',sans-serif">
+
+<div style="animation:w1 28s ease-in-out infinite;position:absolute;top:-120px;left:-120px;width:640px;height:640px;border-radius:50%;background:radial-gradient(circle,rgba(255,90,0,.17),rgba(255,90,0,0) 70%)"></div>
+<div style="animation:w2 34s ease-in-out infinite;position:absolute;top:120px;right:-160px;width:700px;height:700px;border-radius:50%;background:radial-gradient(circle,rgba(255,150,80,.24),rgba(255,150,80,0) 68%)"></div>
+<div style="animation:w3 40s ease-in-out infinite;position:absolute;top:760px;left:30%;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,rgba(255,120,40,.20),rgba(255,120,40,0) 70%)"></div>
+<div style="animation:w2 44s ease-in-out -18s infinite reverse;position:absolute;top:380px;left:8%;width:520px;height:520px;border-radius:50%;background:radial-gradient(circle,rgba(255,170,110,.20),rgba(255,170,110,0) 70%)"></div>
+<canvas id="hg-canvas" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none"></canvas>
+<div id="hg-glow2" style="position:absolute;left:0;top:0;width:1500px;height:1500px;margin:-750px 0 0 -750px;border-radius:50%;background:radial-gradient(circle,rgba(255,150,80,.05),rgba(255,150,80,0) 68%);opacity:0;pointer-events:none;will-change:transform,opacity"></div>
+<div id="hg-glow" style="position:absolute;left:0;top:0;width:1100px;height:1100px;margin:-550px 0 0 -550px;border-radius:50%;background:radial-gradient(circle,rgba(255,90,0,.10),rgba(255,90,0,0) 70%);opacity:0;pointer-events:none;will-change:transform,opacity"></div>
+<svg style="position:absolute;inset:0;width:100%;height:100%;opacity:.22;mix-blend-mode:multiply;pointer-events:none" xmlns="http://www.w3.org/2000/svg"><filter id="grain"><feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="2" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 .2  0 0 0 0 .12  0 0 0 0 .05  0 0 0 .9 0"/></filter><rect width="100%" height="100%" filter="url(#grain)"/></svg>
+
+<div style="position:relative;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;padding:22px 48px 0">
+<div style="display:flex;align-items:center;gap:16px;flex:1 1 260px"><img src="/_blob/0810b97e1b54a0e26a86066e9455ae90" alt="Homados AI logo" style="width:76px;height:auto;display:block;filter:drop-shadow(0 6px 12px rgba(255,90,0,.28))"><span class="brand" style="font-family:'Instrument Serif',serif;font-size:42px;letter-spacing:-.005em;line-height:1">Homados <span class="brandai">AI</span></span></div>
+<nav class="bar" style="display:flex;gap:2px;font-size:14px;padding:5px;border-radius:999px;flex:0 0 auto">
+<a href="#" class="tab on">Analyze</a><a href="#" class="tab">History</a><a href="#" class="tab">How it works</a><a href="#" class="tab">About</a></nav>
+<div style="flex:1 1 220px;display:flex;justify-content:flex-end"><div class="glass" style="display:flex;align-items:center;gap:8px;font-size:13px;color:#4a4945;padding:8px 15px;border-radius:999px"><span class="live" style="width:7px;height:7px;border-radius:50%;background:#FF5A00;display:inline-block"></span>Detector ready</div></div>
+</div>
+
+<div style="position:relative;max-width:1000px;margin:0 auto;padding:56px 24px 0;text-align:center">
+<div class="i1" style="position:relative;width:130px;height:130px;margin:0 auto 26px">
+<div class="r1" style="position:absolute;inset:0;border:1px solid #FF5A00;border-radius:50%"></div>
+<div class="r2" style="position:absolute;inset:0;border:1px solid #FF5A00;border-radius:50%"></div>
+<div class="r3" style="position:absolute;inset:0;border:1px solid #FF5A00;border-radius:50%"></div>
+<div class="orb" style="position:absolute;inset:34px;border-radius:50%;background:radial-gradient(circle at 32% 28%,#FFD2B0 0%,#FF8A3D 30%,#FF5A00 62%,#B83600 100%);box-shadow:0 14px 40px rgba(255,90,0,.55),inset 0 -8px 16px rgba(120,30,0,.35),inset 0 6px 12px rgba(255,255,255,.55)"></div>
+</div>
+<div class="i2" style="font-size:12px;letter-spacing:.24em;color:#FF5A00;text-transform:uppercase;font-weight:700">AI voice and fake audio detection</div>
+<h1 class="i2" style="margin:18px 0 0;font-family:'Instrument Serif',serif;font-weight:400;font-size:100px;line-height:1;letter-spacing:-.02em">Is that voice <span class="gloss" style="display:inline-block;padding:0 .08em">real?</span></h1>
+<p class="i3" style="margin:26px auto 0;max-width:580px;font-size:18px;line-height:1.55;color:#5c5b57">Play a call, speak into your microphone, or drop in a recording. Homados AI listens and tells you, every second, how likely the voice is to be AI-generated.</p>
+<div class="i4" style="margin-top:38px;display:flex;flex-direction:column;align-items:center;gap:14px">
+<a class="cta" href="#" style="background:linear-gradient(135deg,#FF8A3D 0%,#FF5A00 55%,#D43F00 100%);color:#fff;padding:19px 40px;border-radius:999px;font-weight:600;font-size:16px;display:inline-flex;align-items:center;gap:12px;box-shadow:0 12px 30px rgba(255,90,0,.38),inset 0 1px 0 rgba(255,255,255,.55)"><span class="sh"></span><span style="width:10px;height:10px;border-radius:50%;background:#fff;display:inline-block;box-shadow:0 0 12px #fff"></span>Tap here to detect AI or fake audio</a>
+<a href="#" style="font-size:14px;color:#111;border-bottom:1px solid #CDB9A8;padding-bottom:2px">or upload a recording instead</a>
+<div style="font-size:13px;color:#7a7771">Nothing is saved unless you choose to save it.</div>
+</div>
+</div>
+
+<div class="i5" style="position:relative;max-width:920px;margin:84px auto 0;padding:0 24px">
+<div style="text-align:center;font-size:12px;letter-spacing:.22em;color:#7a7771;text-transform:uppercase;font-weight:600">Pick what you want to check</div>
+<div style="margin-top:20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px">
+<a class="card glass" href="#" style="border-radius:22px;padding:28px;color:#111;display:block"><div style="font-size:12px;letter-spacing:.12em;color:#FF5A00;font-weight:700">01</div><div style="margin-top:12px;font-family:'Instrument Serif',serif;font-size:30px">Microphone</div><div style="margin-top:8px;font-size:15px;line-height:1.5;color:#5c5b57">Speak, or hold your phone near a speaker. See the result live.</div></a>
+<a class="card glass" href="#" style="border-radius:22px;padding:28px;color:#111;display:block"><div style="font-size:12px;letter-spacing:.12em;color:#FF5A00;font-weight:700">02</div><div style="margin-top:12px;font-family:'Instrument Serif',serif;font-size:30px">Live call</div><div style="margin-top:8px;font-size:15px;line-height:1.5;color:#5c5b57">Capture audio from a browser tab or your screen during a call.</div></a>
+<a class="card glass" href="#" style="border-radius:22px;padding:28px;color:#111;display:block"><div style="font-size:12px;letter-spacing:.12em;color:#FF5A00;font-weight:700">03</div><div style="margin-top:12px;font-family:'Instrument Serif',serif;font-size:30px">Recording</div><div style="margin-top:8px;font-size:15px;line-height:1.5;color:#5c5b57">Upload an audio file. We replay it at normal speed and score it.</div></a>
+</div>
+</div>
+
+<div style="position:relative;max-width:920px;margin:72px auto 0;padding:0 24px">
+<div style="position:relative;overflow:hidden;background:linear-gradient(145deg,#1b1714,#0d0b0a);color:#F3EEE8;border-radius:28px;padding:40px 44px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:28px;box-shadow:0 30px 70px rgba(255,90,0,.18),inset 0 1px 0 rgba(255,255,255,.12)">
+<div style="position:absolute;top:-80px;right:-60px;width:300px;height:300px;border-radius:50%;background:radial-gradient(circle,rgba(255,90,0,.45),rgba(255,90,0,0) 70%)"></div>
+<div style="position:relative"><div style="font-size:12px;letter-spacing:.2em;color:#FF7A2B;text-transform:uppercase;font-weight:700">How to read the result</div><div style="margin-top:12px;font-family:'Instrument Serif',serif;font-size:34px;line-height:1.1">One number, in plain words.</div></div>
+<div style="position:relative;font-size:15px;line-height:1.6;color:#BDB6AD"><b style="color:#fff;font-weight:600">Score 0 to 100.</b> Higher means the voice is more likely to be AI-generated. Each speaker on a call gets their own score.</div>
+<div style="position:relative;font-size:15px;line-height:1.6;color:#BDB6AD"><b style="color:#fff;font-weight:600">Honest by design.</b> It needs about five seconds of speech first. If audio is too quiet or noisy, it says so instead of guessing.</div>
+</div>
+</div>
+
+<div style="position:relative;max-width:920px;margin:40px auto 0;padding:0 24px 56px;display:flex;flex-wrap:wrap;gap:12px 28px;justify-content:center;font-size:13px;color:#7a7771">
+<span>Updated every second</span><span>Works with phone-quality audio</span><span>Open results, no black box</span>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1300}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+componentDidMount() {
+this._hgTry = 0;
+this._hgStart();
+}
+_hgStart() {
+const find = (id, root) => {
+const el = root.getElementById ? root.getElementById(id) : root.querySelector('#' + id);
+if (el) return el;
+const all = root.querySelectorAll ? root.querySelectorAll('*') : [];
+for (const n of all) { if (n.shadowRoot) { const f = find(id, n.shadowRoot); if (f) return f; } }
+return null;
+};
+const cv = find('hg-canvas', document);
+const g1 = find('hg-glow', document);
+const g2 = find('hg-glow2', document);
+if (!cv || !g1 || !g2 || !cv.getContext) {
+if (this._hgTry++ < 30) this._hgTimer = setTimeout(() => this._hgStart(), 150);
+return;
+}
+const ctx = cv.getContext('2d');
+const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const GAP = 24, R0 = 620;
+let W = 0, H = 0, dpr = 1, dots = [];
+const tgt = { x: -999, y: -999, on: 0 };
+const m1 = { x: -999, y: -999, a: 0 };
+const m2 = { x: -999, y: -999, a: 0 };
+const build = () => {
+dpr = Math.min(window.devicePixelRatio || 1, 2);
+W = cv.clientWidth; H = cv.clientHeight;
+cv.width = W * dpr; cv.height = H * dpr;
+ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+dots = [];
+for (let y = GAP / 2; y < H; y += GAP)
+for (let x = GAP / 2; x < W; x += GAP)
+dots.push({ hx: x, hy: y, x: x, y: y, vx: 0, vy: 0 });
+};
+build();
+const pos = (e) => {
+const r = cv.getBoundingClientRect();
+const sx = r.width ? cv.clientWidth / r.width : 1;
+const sy = r.height ? cv.clientHeight / r.height : 1;
+const p = e.touches && e.touches[0] ? e.touches[0] : e;
+tgt.x = (p.clientX - r.left) * sx;
+tgt.y = (p.clientY - r.top) * sy;
+if (!tgt.on) { m1.x = m2.x = tgt.x; m1.y = m2.y = tgt.y; }
+tgt.on = 1;
+};
+const leave = () => { tgt.on = 0; };
+window.addEventListener('pointermove', pos, { passive: true, capture: true });
+window.addEventListener('mousemove', pos, { passive: true, capture: true });
+document.addEventListener('mousemove', pos, { passive: true, capture: true });
+window.addEventListener('touchmove', pos, { passive: true });
+let parentWin = null;
+const ppos = (e) => {
+try {
+const fe = window.frameElement; if (!fe) return;
+const fr = fe.getBoundingClientRect();
+pos({ clientX: e.clientX - fr.left, clientY: e.clientY - fr.top });
+} catch (_) {}
+};
+try { if (window.parent && window.parent !== window) { window.parent.document; window.parent.addEventListener('mousemove', ppos, { passive: true, capture: true }); parentWin = window.parent; } } catch (_) { parentWin = null; }
+document.addEventListener('pointerleave', leave);
+window.addEventListener('blur', leave);
+let ro = null;
+if (window.ResizeObserver) { ro = new ResizeObserver(build); ro.observe(cv); }
+let t0 = performance.now(), raf = 0, alive = true;
+const frame = (now) => {
+if (!alive) return;
+raf = requestAnimationFrame(frame);
+const t = (now - t0) / 1000;
+m1.x += (tgt.x - m1.x) * 0.055; m1.y += (tgt.y - m1.y) * 0.055;
+m2.x += (tgt.x - m2.x) * 0.022; m2.y += (tgt.y - m2.y) * 0.022;
+m1.a += (tgt.on - m1.a) * 0.04; m2.a += (tgt.on - m2.a) * 0.025;
+g1.style.transform = 'translate(' + m1.x.toFixed(1) + 'px,' + m1.y.toFixed(1) + 'px)';
+g2.style.transform = 'translate(' + m2.x.toFixed(1) + 'px,' + m2.y.toFixed(1) + 'px)';
+g1.style.opacity = m1.a.toFixed(3); g2.style.opacity = m2.a.toFixed(3);
+ctx.clearRect(0, 0, W, H);
+for (let i = 0; i < dots.length; i++) {
+const d = dots[i];
+const dx = m1.x - d.hx, dy = m1.y - d.hy;
+const dist = Math.sqrt(dx * dx + dy * dy);
+const breath = Math.sin(t * 0.7);
+const R = R0 * (1 + 0.07 * breath);
+let k = 0;
+if (dist < R) { k = Math.pow(1 - dist / R, 1.7) * m1.a; }
+let tx = d.hx, ty = d.hy;
+if (!reduce) {
+tx += Math.sin(t * 0.45 + d.hx * 0.013) * 1.6;
+ty += Math.cos(t * 0.4 + d.hy * 0.013) * 1.6;
+const pull = 0.34 * (1 + 0.14 * breath);
+tx += dx * pull * k; ty += dy * pull * k;
+const wv = Math.sin(t * 0.8 - dist * 0.016) * 5 * k;
+if (dist > 1) { tx += (dx / dist) * wv; ty += (dy / dist) * wv; }
+}
+d.vx += (tx - d.x) * 0.05; d.vy += (ty - d.y) * 0.05;
+d.vx *= 0.86; d.vy *= 0.86;
+d.x += d.vx; d.y += d.vy;
+const r = 1.1 + 1.7 * k;
+const al = 0.42 + 0.5 * k;
+const ko = k * 0.5;
+const rr = Math.round(205 + 50 * ko), gg = Math.round(185 - 95 * ko), bb = Math.round(168 - 168 * ko);
+ctx.fillStyle = 'rgba(' + rr + ',' + gg + ',' + bb + ',' + al.toFixed(2) + ')';
+if (k < 0.02) { ctx.fillRect(d.x - 1, d.y - 1, 2, 2); }
+else { ctx.beginPath(); ctx.arc(d.x, d.y, r, 0, 6.2832); ctx.fill(); }
+}
+};
+raf = requestAnimationFrame(frame);
+this._hg = () => {
+alive = false; cancelAnimationFrame(raf);
+window.removeEventListener('pointermove', pos, true);
+window.removeEventListener('mousemove', pos, true);
+document.removeEventListener('mousemove', pos, true);
+window.removeEventListener('touchmove', pos);
+if (parentWin) { try { parentWin.removeEventListener('mousemove', ppos, true); } catch (_) {} }
+document.removeEventListener('pointerleave', leave);
+window.removeEventListener('blur', leave);
+if (ro) ro.disconnect();
+};
+}
+componentWillUnmount() { clearTimeout(this._hgTimer); if (this._hg) this._hg(); }
+}
+</script>
+</body>
+</html>
