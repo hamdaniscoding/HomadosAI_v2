@@ -31,6 +31,7 @@ class SessionLogger:
                         ended_at TEXT,
                         detector TEXT,
                         device TEXT,
+                        source TEXT,
                         received_seconds REAL,
                         result_count INTEGER
                     )
@@ -46,6 +47,7 @@ class SessionLogger:
                         verdict TEXT,
                         latency_ms REAL,
                         reason TEXT,
+                        speakers_json TEXT,
                         PRIMARY KEY (session_id, seq)
                     )
                 """)
@@ -57,6 +59,7 @@ class SessionLogger:
         self._worker_thread.start()
 
     def _worker_loop(self):
+        import json
         try:
             with sqlite3.connect(self.db_path, check_same_thread=False) as conn:
                 while not self._stop_event.is_set():
@@ -69,9 +72,9 @@ class SessionLogger:
                         table, data = task
                         if table == "session_start":
                             conn.execute("""
-                                INSERT INTO sessions (id, started_at, detector, device, received_seconds, result_count)
-                                VALUES (?, ?, ?, ?, ?, ?)
-                            """, (data["id"], data["started_at"], data["detector"], data["device"], 0.0, 0))
+                                INSERT INTO sessions (id, started_at, detector, device, source, received_seconds, result_count)
+                                VALUES (?, ?, ?, ?, ?, ?, ?)
+                            """, (data["id"], data["started_at"], data["detector"], data["device"], data.get("source"), 0.0, 0))
                         elif table == "session_end":
                             conn.execute("""
                                 UPDATE sessions SET ended_at = ?, received_seconds = ?, result_count = ? WHERE id = ?
@@ -80,12 +83,13 @@ class SessionLogger:
                             conn.execute("""
                                 INSERT INTO results (
                                     session_id, seq, t, speech_ratio, ai_probability, 
-                                    smoothed_probability, verdict, latency_ms, reason
-                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                    smoothed_probability, verdict, latency_ms, reason, speakers_json
+                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                             """, (
                                 data["session_id"], data["seq"], data["t"], data["speech_ratio"],
                                 data.get("ai_probability"), data.get("smoothed_probability"),
-                                data.get("verdict"), data.get("latency_ms"), data.get("reason")
+                                data.get("verdict"), data.get("latency_ms"), data.get("reason"),
+                                json.dumps(data.get("speakers")) if data.get("speakers") else None
                             ))
                         conn.commit()
                         self._queue.task_done()
@@ -120,11 +124,47 @@ class SessionLogger:
         self._queue.put(("result", result))
 
     def get_latest_sessions(self, limit: int = 50):
+        import json
         if not self.enabled: return []
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute("SELECT * FROM sessions ORDER BY started_at DESC LIMIT ?", (limit,)).fetchall()
-            return [dict(r) for r in rows]
+            
+            sessions = []
+            for row in rows:
+                session = dict(row)
+                
+                # Fetch results for calculation
+                results = conn.execute("SELECT * FROM results WHERE session_id = ?", (session["id"],)).fetchall()
+                
+                duration = session.get("received_seconds", 0)
+                mean_score = None
+                peak_score = None
+                speaker_count = 0
+                
+                probs = [r["smoothed_probability"] for r in results if r["smoothed_probability"] is not None]
+                if probs:
+                    mean_score = sum(probs) / len(probs)
+                    peak_score = max(probs)
+                
+                # Speaker count is max len of speakers list in last few results or overall max
+                for r in results:
+                    r_dict = dict(r)
+                    if r_dict.get("speakers_json"):
+                        try:
+                            spk = json.loads(r_dict["speakers_json"])
+                            if len(spk) > speaker_count:
+                                speaker_count = len(spk)
+                        except: pass
+                
+                session["duration"] = duration
+                session["mean_score"] = mean_score
+                session["peak_score"] = peak_score
+                session["speaker_count"] = speaker_count
+                
+                sessions.append(session)
+            
+            return sessions
 
     def get_session(self, session_id: str):
         if not self.enabled: return None

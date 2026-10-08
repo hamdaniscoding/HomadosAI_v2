@@ -14,6 +14,7 @@ class WsStartMessage(BaseModel):
     channels: int
     encoding: str
     mode: str
+    save_session: bool = False
 
 
 class WsStopMessage(BaseModel):
@@ -83,6 +84,10 @@ class HealthResponse(BaseModel):
     torch_version: str | None = None
     cuda_available: bool | None = None
     device: str
+    sample_rate: int
+    window_seconds: float
+    hop_seconds: float
+    calibrated: bool
     detectors: list[DetectorStatus] = Field(default_factory=list)
     ecapa: EcapaStatus
     last_inference_ms: float | None = None

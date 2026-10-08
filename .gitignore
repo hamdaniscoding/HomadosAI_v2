@@ -72,3 +72,6 @@ package-lock.json
 
 # Training checkpoints
 models/checkpoints/
+
+models/
+models/ecapa_tdnn/hyperparams.yaml

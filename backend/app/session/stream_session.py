@@ -15,9 +15,10 @@ from app.core.buffer import RollingBuffer
 class StreamSession:
     """Holds state for one WebSocket streaming session."""
 
-    def __init__(self) -> None:
+    def __init__(self, save_session: bool = False) -> None:
         settings = get_settings()
         self.session_id: str = str(uuid.uuid4())
+        self.save_session = save_session
         self.start_time: datetime = datetime.now(timezone.utc)
         self.buffer: RollingBuffer = RollingBuffer(
             capacity_seconds=settings.window_seconds * 2,

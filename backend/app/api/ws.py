@@ -81,7 +81,8 @@ async def stream(ws: WebSocket) -> None:
                         )
                         return
 
-                    session = StreamSession()
+                    save_session = data.get("save_session", False)
+                    session = StreamSession(save_session=save_session)
                     started = True
                     detector = get_active()
                     ready = WsReadyMessage(
@@ -91,14 +92,15 @@ async def stream(ws: WebSocket) -> None:
                         detector=detector.name if detector else None,
                     )
                     
-                    from app.core.db import get_db_logger
-                    db_logger = get_db_logger()
-                    db_logger.log_session_start(
-                        session_id=session.session_id,
-                        started_at=session.start_time,
-                        detector=detector.name if detector else None,
-                        device=settings.torch_device
-                    )
+                    if session.save_session:
+                        from app.core.db import get_db_logger
+                        db_logger = get_db_logger()
+                        db_logger.log_session_start(
+                            session_id=session.session_id,
+                            started_at=session.start_time,
+                            detector=detector.name if detector else None,
+                            device=settings.torch_device
+                        )
                     
                     await ws.send_text(ready.model_dump_json())
                     continue
@@ -210,7 +212,8 @@ async def stream(ws: WebSocket) -> None:
                             active_speaker=session.diarizer.active_speaker_id,
                             speakers=_get_speakers_info(),
                         )
-                        get_db_logger().log_result(session.session_id, result.model_dump())
+                        if session.save_session:
+                            get_db_logger().log_result(session.session_id, result.model_dump())
                         await ws.send_text(result.model_dump_json())
                     elif detector is None:
                         result = WsResultMessage(
@@ -222,7 +225,8 @@ async def stream(ws: WebSocket) -> None:
                             active_speaker=session.diarizer.active_speaker_id,
                             speakers=_get_speakers_info(),
                         )
-                        get_db_logger().log_result(session.session_id, result.model_dump())
+                        if session.save_session:
+                            get_db_logger().log_result(session.session_id, result.model_dump())
                         await ws.send_text(result.model_dump_json())
                     elif inference_task is not None and not inference_task.done():
                         # Previous prediction still running: skip hop, do not queue
@@ -237,7 +241,8 @@ async def stream(ws: WebSocket) -> None:
                             active_speaker=session.diarizer.active_speaker_id,
                             speakers=_get_speakers_info(),
                         )
-                        get_db_logger().log_result(session.session_id, result.model_dump())
+                        if session.save_session:
+                            get_db_logger().log_result(session.session_id, result.model_dump())
                         await ws.send_text(result.model_dump_json())
                     else:
                         async def _run_inference(
@@ -314,7 +319,8 @@ async def stream(ws: WebSocket) -> None:
                                     ]
                                 )
                                 from app.core.db import get_db_logger
-                                get_db_logger().log_result(sess.session_id, res.model_dump())
+                                if sess.save_session:
+                                    get_db_logger().log_result(sess.session_id, res.model_dump())
                                 await ws.send_text(res.model_dump_json())
                             except Exception as e:
                                 logger.exception("Detector inference error: %s", e)
@@ -339,7 +345,7 @@ async def stream(ws: WebSocket) -> None:
         except Exception:
             pass
     finally:
-        if session is not None:
+        if session is not None and session.save_session:
             from app.core.db import get_db_logger
             from datetime import datetime, timezone
             get_db_logger().log_session_end(

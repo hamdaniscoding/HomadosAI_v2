@@ -56,6 +56,10 @@ def health() -> dict[str, Any]:
             if settings.torch_device == "auto"
             else settings.torch_device
         ),
+        sample_rate=settings.sample_rate,
+        window_seconds=settings.window_seconds,
+        hop_seconds=settings.hop_seconds,
+        calibrated=settings.verdict_ai_threshold is not None and settings.verdict_human_threshold is not None,
         detectors=[
             DetectorStatus(**d) for d in list_detectors()
         ],
@@ -151,3 +155,48 @@ def get_session(session_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail="Session not found")
     return session_data
 
+
+@router.get("/sessions/{session_id}/export.csv")
+def export_session_csv(session_id: str) -> Any:
+    from fastapi.responses import PlainTextResponse
+    from app.core.db import get_db_logger
+    import csv
+    import io
+    
+    db = get_db_logger()
+    session_data = db.get_session(session_id)
+    if not session_data:
+        raise HTTPException(status_code=404, detail="Session not found")
+        
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["seq", "t", "speech_ratio", "ai_probability", "smoothed_probability", "verdict", "latency_ms", "reason"])
+    
+    for r in session_data["results"]:
+        writer.writerow([
+            r.get("seq"), r.get("t"), r.get("speech_ratio"), 
+            r.get("ai_probability"), r.get("smoothed_probability"),
+            r.get("verdict"), r.get("latency_ms"), r.get("reason")
+        ])
+        
+    return PlainTextResponse(output.getvalue(), media_type="text/csv", headers={
+        "Content-Disposition": f"attachment; filename=session_{session_id}.csv"
+    })
+
+@router.delete("/sessions/{session_id}")
+def delete_session(session_id: str) -> dict[str, Any]:
+    from app.core.db import get_db_logger
+    db = get_db_logger()
+    import sqlite3
+    try:
+        with sqlite3.connect(db.db_path) as conn:
+            # Check if exists
+            row = conn.execute("SELECT id FROM sessions WHERE id = ?", (session_id,)).fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Session not found")
+            conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+            conn.execute("DELETE FROM results WHERE session_id = ?", (session_id,))
+            conn.commit()
+    except sqlite3.Error:
+        raise HTTPException(status_code=500, detail="Database error")
+    return {"status": "deleted"}
