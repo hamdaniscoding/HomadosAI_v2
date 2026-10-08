@@ -27,7 +27,7 @@ export class AudioStreamClient {
   }
   
   private connectWS(onOpen: () => void) {
-    const wsUrl = (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + (import.meta.env.DEV ? '127.0.0.1:8000' : window.location.host) + '/api/v1/ws';
+    const wsUrl = (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + (import.meta.env.DEV ? '127.0.0.1:8000' : window.location.host) + '/api/v1/ws/stream';
     this.ws = new WebSocket(wsUrl);
     
     this.ws.onopen = () => {

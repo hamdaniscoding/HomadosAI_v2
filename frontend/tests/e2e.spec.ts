@@ -31,7 +31,7 @@ test.describe('Homados AI E2E', () => {
     
     // Upload file
     const fileInput = page.locator('input[type="file"]').first();
-    const filePath = path.resolve(__dirname, '../../../data/human/h1.mp3');
+    const filePath = path.resolve(process.cwd(), '../data/human/h1.mp3');
     await fileInput.setInputFiles(filePath);
     
     // Check Collecting state

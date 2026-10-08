@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AudioStreamClient, StreamState } from '../lib/stream';
-import { ServerMessage, ScoreUpdate } from '../types/protocol';
+import { ServerMessage, WsResultMessage, WsStatusMessage } from '../types/protocol';
 
 const REASON_MAP: Record<string, string> = {
   'detector_busy': 'Catching up, one update skipped',
@@ -22,8 +22,11 @@ const Home = () => {
   const [saveSession, setSaveSession] = useState(false);
   const [dismissBanner, setDismissBanner] = useState(false);
   
-  const [scores, setScores] = useState<ScoreUpdate[]>([]);
-  const [latestScore, setLatestScore] = useState<ScoreUpdate | null>(null);
+  const [scores, setScores] = useState<WsResultMessage[]>([]);
+  const [latestScore, setLatestScore] = useState<WsResultMessage | null>(null);
+  const [latestStatus, setLatestStatus] = useState<WsStatusMessage | null>(null);
+  const [sessionId, setSessionId] = useState('');
+  
   const [fileProgress, setFileProgress] = useState<{received: number, total: number} | null>(null);
   const [sourceName, setSourceName] = useState('');
   
@@ -40,6 +43,7 @@ const Home = () => {
     setSourceName(srcName);
     setScores([]);
     setLatestScore(null);
+    setLatestStatus(null);
     setFileProgress(null);
     setErrorMsg('');
     
@@ -56,7 +60,11 @@ const Home = () => {
             setErrorMsg(`${msg.code}: ${msg.message}`);
             setState('error');
             clientRef.current?.stop();
-          } else if (msg.type === 'score') {
+          } else if (msg.type === 'ready') {
+            setSessionId(msg.session_id);
+          } else if (msg.type === 'status') {
+            setLatestStatus(msg);
+          } else if (msg.type === 'result') {
             if (state !== 'live' && msg.ai_probability !== null) {
               setState('live');
             }
@@ -228,21 +236,17 @@ const Home = () => {
             
             {/* Status Line */}
             <div aria-live="polite" style={{ marginTop: '24px', fontSize: '14px', color: '#5c5b57' }}>
-              {latestScore ? (
-                <>
-                  {latestScore.reason ? (
-                    <span style={{ color: '#D43F00' }}>{formatReason(latestScore.reason)}</span>
-                  ) : (
-                    <span>Collecting audio, {latestScore.received_seconds.toFixed(1)} of {latestScore.needed_seconds} s</span>
-                  )}
-                </>
+              {latestScore?.reason ? (
+                <span style={{ color: '#D43F00' }}>{formatReason(latestScore.reason)}</span>
+              ) : latestStatus ? (
+                <span>Collecting audio, {latestStatus.received_seconds.toFixed(1)} of {latestStatus.needed_seconds} s</span>
               ) : (
                 <span>Connecting...</span>
               )}
             </div>
 
             {/* Verdict Uncalibrated */}
-            {latestScore?.ai_probability !== null && !latestScore?.reason && (
+            {latestScore?.ai_probability !== null && latestScore?.verdict === null && (
                <div style={{ marginTop: '12px', display: 'inline-block', background: '#eee', padding: '4px 8px', borderRadius: '4px', fontSize: '12px' }}>
                  Uncalibrated, score only
                </div>
@@ -263,10 +267,10 @@ const Home = () => {
             {/* Footer */}
             {latestScore && (
               <div style={{ marginTop: '24px', display: 'flex', gap: '16px', fontSize: '12px', fontFamily: 'monospace', color: '#7a7771', borderTop: '1px solid #eee', paddingTop: '16px' }}>
-                <span>{latestScore.detector_name}</span>
+                <span>{latestScore.detector}</span>
                 <span>Lat: {latestScore.latency_ms}ms</span>
                 <span>Speech: {Math.round(latestScore.speech_ratio * 100)}%</span>
-                <span>ID: {latestScore.session_id.substring(0, 8)}</span>
+                <span>ID: {sessionId.substring(0, 8)}</span>
               </div>
             )}
             
