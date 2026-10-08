@@ -47,8 +47,9 @@ Endpoint: `ws://host:port/api/v1/ws/stream`
 4. Server sends `{"type":"status",...,"speech_seconds":...}` every 0.5 s and `{"type":"result",...,"seq":1,"speech_ratio":...,"active_speaker":0,"speakers":[{"id":0,"speech_seconds":3.5,"ai_probability":0.8,"smoothed_probability":0.7,"reason":null}]}` every 1 s (once 5 s of audio exist)
 5. Client sends `{"type":"stop"}` to end
 
-## Install
+## Setup & Development
 
+### Backend
 ```bash
 python -m venv .venv
 .venv/Scripts/activate    # Windows
@@ -57,15 +58,28 @@ pip install -r backend/requirements.txt
 # Optional: for ECAPA speaker embeddings
 pip install -r backend/requirements-ml.txt
 python scripts/download_pretrained.py --ecapa
-```
 
-## Run
-
-```bash
+# Run backend
 uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
 ```
-
 API docs at `http://127.0.0.1:8000/docs`.
+
+### Frontend
+Requires Node 20.
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+### Production Build
+```bash
+cd frontend
+npm run build
+cd ..
+uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
+```
+FastAPI serves the built frontend (`frontend/dist`) at `/`.
 
 ## Test
 
