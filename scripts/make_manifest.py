@@ -15,28 +15,23 @@ def make_manifest(data_dir: Path, out_csv: Path):
         for file_path in data_dir.glob(ext):
             try:
                 rel_parts = file_path.relative_to(data_dir).parts
-                if len(rel_parts) < 2:
-                    # Could be data/human/file.mp3
-                    dataset = "default"
-                    cls_name = rel_parts[0].lower()
-                    speaker_id = file_path.stem
-                else:
-                    if rel_parts[0].lower() in ["human", "ai", "real", "fake"]:
-                        dataset = "default"
-                        cls_name = rel_parts[0].lower()
-                        speaker_id = rel_parts[1] if len(rel_parts) > 2 else file_path.stem
-                    else:
-                        dataset = rel_parts[0]
-                        cls_name = rel_parts[1].lower()
-                        speaker_id = rel_parts[2] if len(rel_parts) > 3 else file_path.stem
-                
-                if cls_name in ["human", "real", "0"]:
-                    label = 0
-                elif cls_name in ["ai", "fake", "spoof", "1"]:
-                    label = 1
-                else:
+                if len(rel_parts) < 3:
                     continue
-                    
+                
+                # Check if it's the AI generation folder (data/ai/<tool>/<voice>/)
+                if rel_parts[0] == "ai":
+                    dataset = rel_parts[1]
+                    cls_name = "ai"
+                    speaker_id = rel_parts[2]
+                else:
+                    dataset = rel_parts[0]
+                    cls_name = rel_parts[1].lower()
+                    if cls_name not in ["human", "ai"]:
+                        continue
+                    speaker_id = rel_parts[2]
+                
+                label = 1 if cls_name == "ai" else 0
+                
                 info = sf.info(str(file_path))
                 
                 records.append({
