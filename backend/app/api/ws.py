@@ -35,6 +35,7 @@ async def stream(ws: WebSocket) -> None:
     started = False
     inference_task: asyncio.Task | None = None
     speaker_inference_tasks: dict[int, asyncio.Task] = {}
+    all_results: list[dict[str, Any]] = []
 
     try:
         while True:
@@ -113,6 +114,7 @@ async def stream(ws: WebSocket) -> None:
                                 from app.core.db import get_db_logger
                                 if session.save_session:
                                     get_db_logger().log_result(session.session_id, res.model_dump())
+                                all_results.append(res.model_dump())
                                 await ws.send_text(res.model_dump_json())
                             except Exception as e:
                                 logger.exception(f"Detector inference error on stop: {e}")
@@ -142,7 +144,9 @@ async def stream(ws: WebSocket) -> None:
                         return
 
                     save_session = data.get("save_session", False)
+                    source_name = data.get("source_name", "Microphone")
                     session = StreamSession(save_session=save_session)
+                    session.source_name = source_name
                     started = True
                     detector = get_active()
                     ready = WsReadyMessage(
@@ -274,6 +278,7 @@ async def stream(ws: WebSocket) -> None:
                         )
                         if session.save_session:
                             get_db_logger().log_result(session.session_id, result.model_dump())
+                        all_results.append(result.model_dump())
                         await ws.send_text(result.model_dump_json())
                     elif detector is None:
                         result = WsResultMessage(
@@ -287,6 +292,7 @@ async def stream(ws: WebSocket) -> None:
                         )
                         if session.save_session:
                             get_db_logger().log_result(session.session_id, result.model_dump())
+                        all_results.append(result.model_dump())
                         await ws.send_text(result.model_dump_json())
                     elif inference_task is not None and not inference_task.done():
                         # Previous prediction still running: skip hop, do not queue
@@ -303,6 +309,7 @@ async def stream(ws: WebSocket) -> None:
                         )
                         if session.save_session:
                             get_db_logger().log_result(session.session_id, result.model_dump())
+                        all_results.append(result.model_dump())
                         await ws.send_text(result.model_dump_json())
                     else:
                         async def _run_inference(
@@ -381,7 +388,11 @@ async def stream(ws: WebSocket) -> None:
                                 from app.core.db import get_db_logger
                                 if sess.save_session:
                                     get_db_logger().log_result(sess.session_id, res.model_dump())
-                                await ws.send_text(res.model_dump_json())
+                                all_results.append(res.model_dump())
+                                try:
+                                    await ws.send_text(res.model_dump_json())
+                                except Exception:
+                                    pass
                             except Exception as e:
                                 logger.exception("Detector inference error: %s", e)
 
@@ -406,14 +417,56 @@ async def stream(ws: WebSocket) -> None:
             pass
     finally:
         if session is not None and session.save_session:
-            from app.core.db import get_db_logger
+            from app.core.db import get_db, get_db_logger
             from datetime import datetime, timezone
-            get_db_logger().log_session_end(
-                session_id=session.session_id,
-                ended_at=datetime.now(timezone.utc),
-                received_seconds=session.received_seconds,
-                result_count=session.seq
-            )
+            try:
+                get_db_logger().log_session_end(
+                    session_id=session.session_id,
+                    ended_at=datetime.now(timezone.utc),
+                    received_seconds=session.received_seconds,
+                    result_count=session.seq
+                )
+            except Exception:
+                pass
+
+            valid_results = [r for r in all_results if r.get("ai_probability") is not None]
+            # Honest empty state: Only save if at least 1 scored window and duration >= 5.0s
+            if len(valid_results) > 0 and session.received_seconds >= 5.0:
+                try:
+                    probs = [
+                        r.get("smoothed_probability") if r.get("smoothed_probability") is not None else r.get("ai_probability")
+                        for r in valid_results
+                    ]
+                    avg_prob = sum(probs) / len(probs) if probs else 0.0
+                    peak_prob = max(probs) if probs else 0.0
+                    peak_t = next(
+                        (r["t"] for r in valid_results if (r.get("smoothed_probability") if r.get("smoothed_probability") is not None else r.get("ai_probability")) == peak_prob),
+                        0.0,
+                    )
+                    record = {
+                        "id": session.session_id,
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                        "source": "live",
+                        "filename": getattr(session, "source_name", "Microphone"),
+                        "duration_s": round(session.received_seconds, 2),
+                        "detector": get_active().name if get_active() else "Unknown",
+                        "avg_prob": round(avg_prob, 4),
+                        "peak_prob": round(peak_prob, 4),
+                        "peak_t": round(peak_t, 2),
+                        "windows_analysed": len(valid_results),
+                        "windows_skipped": len(all_results) - len(valid_results),
+                        "verdict": valid_results[-1].get("verdict"),
+                        "reason": valid_results[-1].get("reason"),
+                        "results_series": all_results,
+                    }
+                    get_db().save_analysis(record)
+                except Exception as e:
+                    logger.error(f"Failed to save analysis to history: {e}")
+
+        try:
+            await ws.close()
+        except Exception:
+            pass
 
 
 async def _send_error(ws: WebSocket, code: str, message: str) -> None:

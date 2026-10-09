@@ -1,15 +1,106 @@
 import sqlite3
-import threading
-import queue
-import logging
-from typing import Any
+import json
+from datetime import datetime, timezone
 from pathlib import Path
-from datetime import datetime
+import logging
 
 logger = logging.getLogger("homados.db")
 
+class HistoryDB:
+    def __init__(self, db_path: str = "data/history.db"):
+        self.db_path = db_path
+        self._init_db()
+
+    def _init_db(self):
+        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS history (
+                        id TEXT PRIMARY KEY,
+                        created_at TEXT,
+                        source TEXT,
+                        filename TEXT,
+                        duration_s REAL,
+                        detector TEXT,
+                        avg_prob REAL,
+                        peak_prob REAL,
+                        peak_t REAL,
+                        windows_analysed INTEGER,
+                        windows_skipped INTEGER,
+                        verdict TEXT,
+                        reason TEXT,
+                        results_json TEXT
+                    )
+                """)
+        except Exception as e:
+            logger.error(f"Failed to init DB: {e}")
+
+    def save_analysis(self, record: dict):
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("""
+                    INSERT OR REPLACE INTO history (
+                        id, created_at, source, filename, duration_s, detector, 
+                        avg_prob, peak_prob, peak_t, windows_analysed, 
+                        windows_skipped, verdict, reason, results_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    record["id"], record["created_at"], record["source"], record["filename"],
+                    record["duration_s"], record["detector"], record["avg_prob"],
+                    record["peak_prob"], record["peak_t"], record["windows_analysed"],
+                    record["windows_skipped"], record.get("verdict"), record.get("reason"),
+                    json.dumps(record["results_series"])
+                ))
+                # Keep max 10 records: after each insert delete the oldest beyond 10 in the SAME transaction
+                conn.execute("""
+                    DELETE FROM history WHERE id IN (
+                        SELECT id FROM history ORDER BY created_at DESC LIMIT -1 OFFSET 10
+                    )
+                """)
+                conn.commit()
+        except Exception as e:
+            logger.error(f"Failed to save analysis: {e}")
+
+    def get_history(self, limit: int = 10):
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute("SELECT id, created_at, source, filename, duration_s, detector, avg_prob, peak_prob, peak_t, windows_analysed, windows_skipped, verdict, reason FROM history ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
+            return [dict(r) for r in rows]
+            
+    def get_history_detail(self, history_id: str):
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("SELECT * FROM history WHERE id = ?", (history_id,)).fetchone()
+            if not row:
+                return None
+            d = dict(row)
+            d["results_series"] = json.loads(d.pop("results_json"))
+            return d
+            
+    def delete_history(self, history_id: str):
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("DELETE FROM history WHERE id = ?", (history_id,))
+            conn.commit()
+
+    def clear_all(self):
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("DELETE FROM history")
+            conn.commit()
+
+_instance = None
+def get_db() -> HistoryDB:
+    global _instance
+    if _instance is None:
+        _instance = HistoryDB()
+    return _instance
+
+
+import queue
+import threading
+
 class SessionLogger:
-    def __init__(self, db_path: str, enabled: bool):
+    def __init__(self, db_path: str = "data/sessions.db", enabled: bool = True):
         self.db_path = db_path
         self.enabled = enabled
         self._queue: queue.Queue = queue.Queue()
@@ -59,16 +150,14 @@ class SessionLogger:
         self._worker_thread.start()
 
     def _worker_loop(self):
-        import json
         try:
             with sqlite3.connect(self.db_path, check_same_thread=False) as conn:
                 while not self._stop_event.is_set():
                     try:
-                        task = self._queue.get(timeout=1.0)
+                        task = self._queue.get(timeout=0.1)
                         if task is None:
                             continue
                             
-                        # Execute task
                         table, data = task
                         if table == "session_start":
                             conn.execute("""
@@ -124,7 +213,6 @@ class SessionLogger:
         self._queue.put(("result", result))
 
     def get_latest_sessions(self, limit: int = 50):
-        import json
         if not self.enabled: return []
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
@@ -133,21 +221,15 @@ class SessionLogger:
             sessions = []
             for row in rows:
                 session = dict(row)
-                
-                # Fetch results for calculation
                 results = conn.execute("SELECT * FROM results WHERE session_id = ?", (session["id"],)).fetchall()
-                
                 duration = session.get("received_seconds", 0)
                 mean_score = None
                 peak_score = None
                 speaker_count = 0
-                
                 probs = [r["smoothed_probability"] for r in results if r["smoothed_probability"] is not None]
                 if probs:
                     mean_score = sum(probs) / len(probs)
                     peak_score = max(probs)
-                
-                # Speaker count is max len of speakers list in last few results or overall max
                 for r in results:
                     r_dict = dict(r)
                     if r_dict.get("speakers_json"):
@@ -156,14 +238,11 @@ class SessionLogger:
                             if len(spk) > speaker_count:
                                 speaker_count = len(spk)
                         except: pass
-                
                 session["duration"] = duration
                 session["mean_score"] = mean_score
                 session["peak_score"] = peak_score
                 session["speaker_count"] = speaker_count
-                
                 sessions.append(session)
-            
             return sessions
 
     def get_session(self, session_id: str):

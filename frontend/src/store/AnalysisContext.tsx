@@ -12,6 +12,7 @@ interface AnalysisState {
   fileProgress: { received: number; total: number } | null;
   errorMsg: string;
   rms: number;
+  deviceName: string;
   
   setState: (s: StreamState) => void;
   setSourceName: (n: string) => void;
@@ -22,6 +23,7 @@ interface AnalysisState {
   setFileProgress: (progress: { received: number; total: number } | null) => void;
   setErrorMsg: (msg: string) => void;
   setRms: (rms: number) => void;
+  setDeviceName: (name: string) => void;
   reset: () => void;
 }
 
@@ -37,6 +39,7 @@ export const AnalysisProvider = ({ children }: { children: ReactNode }) => {
   const [fileProgress, setFileProgress] = useState<{ received: number; total: number } | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [rms, setRms] = useState(0);
+  const [deviceName, setDeviceName] = useState('');
 
   const reset = () => {
     setState('idle');
@@ -48,12 +51,13 @@ export const AnalysisProvider = ({ children }: { children: ReactNode }) => {
     setFileProgress(null);
     setErrorMsg('');
     setRms(0);
+    setDeviceName('');
   };
 
   return (
     <AnalysisContext.Provider value={{
-      state, sourceName, sessionId, scores, latestScore, latestStatus, fileProgress, errorMsg, rms,
-      setState, setSourceName, setSessionId, setScores, setLatestScore, setLatestStatus, setFileProgress, setErrorMsg, setRms, reset
+      state, sourceName, sessionId, scores, latestScore, latestStatus, fileProgress, errorMsg, rms, deviceName,
+      setState, setSourceName, setSessionId, setScores, setLatestScore, setLatestStatus, setFileProgress, setErrorMsg, setRms, setDeviceName, reset
     }}>
       {children}
     </AnalysisContext.Provider>

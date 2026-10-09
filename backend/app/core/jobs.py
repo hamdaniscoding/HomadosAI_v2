@@ -1,35 +1,33 @@
 import threading
-import uuid
 import time
-from typing import Dict, Any, Optional
+import uuid
 import numpy as np
+from typing import Dict, Any, Optional
 
 from app.config import get_settings
 from app.detectors.registry import get_active
-from app.schemas import WsResultMessage, SpeakerInfo
+from app.schemas import WsResultMessage
 from app.session.stream_session import StreamSession
 from app.core.vad import measure_speech_seconds
 
 class JobManager:
     def __init__(self):
-        self.jobs = {}
+        self.jobs: Dict[str, Dict[str, Any]] = {}
         self.lock = threading.Lock()
-        self.current_job_id = None
-        self.worker_thread = None
+        self.worker_thread: Optional[threading.Thread] = None
+        self.current_job_id: Optional[str] = None
 
-    def create_job(self, waveform: np.ndarray, save_session: bool, source_name: str) -> Dict[str, Any]:
+    def create_job(self, waveform: np.ndarray, save_session: bool = False, source_name: str = "upload") -> Dict[str, Any]:
         with self.lock:
             if self.current_job_id is not None:
-                raise ValueError("Another job is currently running")
-            
+                raise ValueError("A job is already running")
+                
             job_id = str(uuid.uuid4())
             settings = get_settings()
-            duration = len(waveform) / settings.sample_rate
             
-            if duration < settings.window_seconds:
-                total_windows = 1
-            else:
-                total_windows = 1 + int((duration - settings.window_seconds) / settings.hop_seconds)
+            sample_rate = settings.sample_rate
+            duration = len(waveform) / sample_rate
+            total_windows = max(1, int(duration / settings.hop_seconds))
             
             self.jobs[job_id] = {
                 "id": job_id,
@@ -66,24 +64,6 @@ class JobManager:
             session = StreamSession(save_session=job["save_session"])
             session.session_id = job["session_id"]
             
-            if job["save_session"]:
-                from app.core.db import get_db_logger
-                db = get_db_logger()
-                detector = get_active()
-                db.log_session_start(
-                    session_id=session.session_id,
-                    started_at=session.start_time,
-                    detector=detector.name if detector else None,
-                    device=settings.torch_device
-                )
-                try:
-                    import sqlite3
-                    with sqlite3.connect(db.db_path) as conn:
-                        conn.execute("UPDATE sessions SET source = ? WHERE id = ?", (job["source_name"], session.session_id))
-                        conn.commit()
-                except Exception:
-                    pass
-            
             total_samples = len(waveform)
             sample_rate = settings.sample_rate
             window_samples = int(settings.window_seconds * sample_rate)
@@ -105,7 +85,6 @@ class JobManager:
                 t_sec = end / sample_rate
                 
                 window_speech_sec = measure_speech_seconds(window, settings.sample_rate)
-                # handle if window is smaller than settings.window_seconds
                 eff_window_sec = len(window) / sample_rate
                 speech_ratio = round(window_speech_sec / eff_window_sec, 4) if eff_window_sec > 0 else 0.0
                 
@@ -171,10 +150,6 @@ class JobManager:
                         speakers=[]
                     )
                 
-                if job["save_session"]:
-                    from app.core.db import get_db_logger
-                    get_db_logger().log_result(session.session_id, res.model_dump())
-                    
                 job["results"].append(res.model_dump())
                 job["progress"]["done_windows"] = seq
                 
@@ -185,20 +160,37 @@ class JobManager:
             job["status"] = "done"
             
             if job["save_session"]:
-                from app.core.db import get_db_logger
+                from app.core.db import get_db
                 from datetime import datetime, timezone
-                get_db_logger().log_session_end(
-                    session_id=session.session_id,
-                    ended_at=datetime.now(timezone.utc),
-                    received_seconds=total_samples / sample_rate,
-                    result_count=seq
-                )
+                
+                valid_results = [r for r in job["results"] if r.get("ai_probability") is not None]
+                probs = [r.get("smoothed_probability") if r.get("smoothed_probability") is not None else r.get("ai_probability") for r in valid_results]
+                avg_prob = sum(probs) / len(probs) if probs else 0.0
+                peak_prob = max(probs) if probs else 0.0
+                peak_t = next((r["t"] for r in valid_results if (r.get("smoothed_probability") if r.get("smoothed_probability") is not None else r.get("ai_probability")) == peak_prob), 0.0)
+                
+                record = {
+                    "id": session.session_id,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "source": "upload",
+                    "filename": job["source_name"],
+                    "duration_s": total_samples / sample_rate,
+                    "detector": get_active().name if get_active() else "Unknown",
+                    "avg_prob": avg_prob,
+                    "peak_prob": peak_prob,
+                    "peak_t": peak_t,
+                    "windows_analysed": len(valid_results),
+                    "windows_skipped": len(job["results"]) - len(valid_results),
+                    "verdict": valid_results[-1]["verdict"] if valid_results else None,
+                    "reason": valid_results[-1]["reason"] if valid_results else None,
+                    "results_series": job["results"]
+                }
+                get_db().save_analysis(record)
             
         except Exception as e:
             job["status"] = "error"
             job["error"] = str(e)
         finally:
-            # Free memory
             job["waveform"] = None
             with self.lock:
                 self.current_job_id = None
@@ -208,7 +200,6 @@ class JobManager:
             return None
         job = self.jobs[job_id]
         
-        # Cleanup old jobs (30 mins)
         now = time.time()
         to_del = [k for k, v in self.jobs.items() if (v["status"] in ["done", "error"]) and (now - v["created_at"] > 1800)]
         for k in to_del:

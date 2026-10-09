@@ -143,63 +143,37 @@ async def enroll(file: UploadFile = File(...)) -> dict[str, Any]:
         embedding=embedding,
     ).model_dump()
 
-@router.get("/sessions")
-def list_sessions(limit: int = 50) -> dict[str, Any]:
-    from app.core.db import get_db_logger
-    db = get_db_logger()
-    return {"sessions": db.get_latest_sessions(limit=limit)}
+@router.get("/history")
+def list_history(limit: int = 10) -> dict[str, Any]:
+    from app.core.db import get_db
+    return {"history": get_db().get_history(limit=limit)}
 
-@router.get("/sessions/{session_id}")
-def get_session(session_id: str) -> dict[str, Any]:
-    from app.core.db import get_db_logger
-    db = get_db_logger()
-    session_data = db.get_session(session_id)
-    if not session_data:
-        raise HTTPException(status_code=404, detail="Session not found")
-    return session_data
+@router.post("/history")
+async def save_history_record(record: dict[str, Any]) -> dict[str, Any]:
+    from app.core.db import get_db
+    # Ensure honest state check
+    if record.get("duration_s", 0) < 5.0 or record.get("windows_analysed", 0) < 1:
+        raise HTTPException(status_code=400, detail="Cannot save session with less than 5s audio or 0 windows analysed")
+    get_db().save_analysis(record)
+    return {"status": "saved", "id": record.get("id")}
 
 
-@router.get("/sessions/{session_id}/export.csv")
-def export_session_csv(session_id: str) -> Any:
-    from fastapi.responses import PlainTextResponse
-    from app.core.db import get_db_logger
-    import csv
-    import io
-    
-    db = get_db_logger()
-    session_data = db.get_session(session_id)
-    if not session_data:
-        raise HTTPException(status_code=404, detail="Session not found")
-        
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(["seq", "t", "speech_ratio", "ai_probability", "smoothed_probability", "verdict", "latency_ms", "reason"])
-    
-    for r in session_data["results"]:
-        writer.writerow([
-            r.get("seq"), r.get("t"), r.get("speech_ratio"), 
-            r.get("ai_probability"), r.get("smoothed_probability"),
-            r.get("verdict"), r.get("latency_ms"), r.get("reason")
-        ])
-        
-    return PlainTextResponse(output.getvalue(), media_type="text/csv", headers={
-        "Content-Disposition": f"attachment; filename=session_{session_id}.csv"
-    })
+@router.get("/history/{history_id}")
+def get_history_item(history_id: str) -> dict[str, Any]:
+    from app.core.db import get_db
+    data = get_db().get_history_detail(history_id)
+    if not data:
+        raise HTTPException(status_code=404, detail="History not found")
+    return data
 
-@router.delete("/sessions/{session_id}")
-def delete_session(session_id: str) -> dict[str, Any]:
-    from app.core.db import get_db_logger
-    db = get_db_logger()
-    import sqlite3
-    try:
-        with sqlite3.connect(db.db_path) as conn:
-            # Check if exists
-            row = conn.execute("SELECT id FROM sessions WHERE id = ?", (session_id,)).fetchone()
-            if not row:
-                raise HTTPException(status_code=404, detail="Session not found")
-            conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
-            conn.execute("DELETE FROM results WHERE session_id = ?", (session_id,))
-            conn.commit()
-    except sqlite3.Error:
-        raise HTTPException(status_code=500, detail="Database error")
+@router.delete("/history/{history_id}")
+def delete_history_item(history_id: str) -> dict[str, Any]:
+    from app.core.db import get_db
+    get_db().delete_history(history_id)
     return {"status": "deleted"}
+
+@router.delete("/history")
+def clear_all_history() -> dict[str, Any]:
+    from app.core.db import get_db
+    get_db().clear_all()
+    return {"status": "cleared"}
