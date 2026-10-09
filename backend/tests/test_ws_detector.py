@@ -178,3 +178,40 @@ def test_ws_with_slow_stub_detector(monkeypatch):
             ws.send_text(json.dumps({"type": "stop"}))
     finally:
         registry.unregister("slow-stub-detector")
+
+def test_ws_stop_scores_final_window(monkeypatch):
+    """Verify that sending stop flushes the final partial window if received_seconds > 0."""
+    import app.core.vad as vad_module
+    monkeypatch.setattr(vad_module, "measure_speech_seconds", lambda s, sr=16000: len(s) / sr)
+
+    detector = _StubDetector()
+    registry.register(detector)
+
+    try:
+        client = TestClient(app)
+        with client.websocket_connect("/api/v1/ws/stream") as ws:
+            ws.send_text(START_MSG)
+            ready = json.loads(ws.receive_text())
+            assert ready["type"] == "ready"
+
+            # Send 2.5s of audio (not enough to trigger the 5.0s window loop)
+            for _ in range(5):
+                ws.send_bytes(_pcm_silence(0.5))
+            
+            ws.send_text(json.dumps({"type": "stop"}))
+            
+            messages = []
+            while True:
+                try:
+                    msg = ws.receive_json()
+                    messages.append(msg)
+                except Exception:
+                    break
+            
+            final_result = next((m for m in messages if m.get("type") == "result"), None)
+            assert final_result is not None
+            assert final_result["ai_probability"] == 0.5
+            assert final_result["t"] == 2.5
+
+    finally:
+        registry.unregister("stub-test-detector")

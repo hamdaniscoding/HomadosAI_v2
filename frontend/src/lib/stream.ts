@@ -1,12 +1,13 @@
 import { ServerMessage } from '../types/protocol';
 
-export type StreamState = 'idle' | 'requesting' | 'connecting' | 'collecting' | 'live' | 'stopping' | 'stopped' | 'reconnecting' | 'error';
+export type StreamState = 'idle' | 'requesting' | 'connecting' | 'collecting' | 'live' | 'stopping' | 'stopped' | 'reconnecting' | 'error' | 'finished' | 'failed' | 'analyzing';
 
 export interface StreamCallbacks {
   onStateChange: (state: StreamState) => void;
   onMessage: (msg: ServerMessage) => void;
   onError: (msg: string) => void;
   onProgress?: (received: number, total: number) => void;
+  onRms?: (rms: number) => void;
 }
 
 export class AudioStreamClient {
@@ -84,6 +85,16 @@ export class AudioStreamClient {
           return;
         }
         this.ws.send(e.data);
+        
+        if (this.callbacks.onRms) {
+          const int16 = new Int16Array(e.data);
+          let sum = 0;
+          for (let i = 0; i < int16.length; i++) {
+             const val = int16[i] / 32768;
+             sum += val * val;
+          }
+          this.callbacks.onRms(Math.sqrt(sum / int16.length));
+        }
       }
     };
     
@@ -133,7 +144,7 @@ export class AudioStreamClient {
     }
   }
 
-  public async startFile(file: File, save: boolean) {
+  public async startFileSimulated(file: File, save: boolean) {
     this.saveSession = save;
     this.setState('requesting');
     
@@ -187,14 +198,101 @@ export class AudioStreamClient {
           
           if (offset >= pcmFloat.length) {
             this.ws.send(JSON.stringify({ type: 'stop' }));
-            this.stop();
+            if (this.fileSimTimer) {
+              clearInterval(this.fileSimTimer);
+              this.fileSimTimer = null;
+            }
           }
         }, 50);
       });
       
     } catch (e) {
       this.callbacks.onError('Unsupported or corrupt file');
-      this.setState('error');
+      this.setState('failed');
+    }
+  }
+
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private abortController: AbortController | null = null;
+
+  public async startFileUpload(file: File, save: boolean) {
+    this.saveSession = save;
+    this.setState('requesting');
+    
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('save_session', save ? 'true' : 'false');
+      
+      const baseUrl = import.meta.env.DEV ? 'http://127.0.0.1:8000' : '';
+      const response = await fetch(`${baseUrl}/api/v1/analyze`, {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) {
+        throw new Error('Upload failed');
+      }
+      
+      const data = await response.json();
+      const jobId = data.job_id;
+      
+      this.setState('collecting');
+      
+      let since = 0;
+      let consecutiveFailures = 0;
+      this.abortController = new AbortController();
+      
+      const poll = async () => {
+        try {
+          const res = await fetch(`${baseUrl}/api/v1/jobs/${jobId}?since=${since}`, {
+            signal: this.abortController?.signal
+          });
+          if (!res.ok) throw new Error(`Poll failed: ${res.status}`);
+          const jobData = await res.json();
+          console.log('POLL JOBDATA', jobData.status);
+          consecutiveFailures = 0;
+          
+          if (jobData.results && jobData.results.length > 0) {
+            for (const result of jobData.results) {
+              this.callbacks.onMessage({ type: 'result', ...result } as any);
+            }
+            since = jobData.results[jobData.results.length - 1].seq;
+          }
+          
+          if (jobData.status === 'done' || jobData.status === 'error') {
+            if (this.pollTimer) {
+              clearTimeout(this.pollTimer);
+              this.pollTimer = null;
+            }
+            if (jobData.status === 'error') {
+              this.callbacks.onError(jobData.error || 'Job failed');
+              this.setState('failed');
+            } else {
+              this.setState('finished');
+            }
+            return;
+          }
+          
+          this.pollTimer = setTimeout(poll, 500);
+        } catch (e: any) {
+          console.error('POLL EXCEPTION', e);
+          if (e.name === 'AbortError') return;
+          consecutiveFailures++;
+          if (consecutiveFailures >= 5) {
+            this.callbacks.onError(e.message || 'Polling failed');
+            this.setState('failed');
+            return;
+          }
+          this.pollTimer = setTimeout(poll, 1500);
+        }
+      };
+      
+      poll();
+      
+    } catch (e) {
+      this.callbacks.onError('Upload failed');
+      this.setState('failed');
     }
   }
   
@@ -203,6 +301,14 @@ export class AudioStreamClient {
     if (this.fileSimTimer) {
       clearInterval(this.fileSimTimer);
       this.fileSimTimer = null;
+    }
+    if (this.pollTimer) {
+      clearTimeout(this.pollTimer);
+      this.pollTimer = null;
+    }
+    if (this.abortController) {
+      this.abortController.abort();
+      this.abortController = null;
     }
     if (this.ws) {
       this.ws.onclose = null;
@@ -225,6 +331,6 @@ export class AudioStreamClient {
       this.mediaStream.getTracks().forEach(t => t.stop());
       this.mediaStream = null;
     }
-    this.setState('stopped');
+    this.setState('finished');
   }
 }

@@ -71,44 +71,47 @@ def health() -> dict[str, Any]:
     ).model_dump()
 
 
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+
 @router.post("/analyze")
-async def analyze(file: UploadFile = File(...)) -> dict[str, Any]:
+async def analyze(
+    file: UploadFile = File(...),
+    save_session: bool = Form(False),
+    source_name: str = Form(None)
+) -> dict[str, Any]:
     """Upload an audio file for analysis."""
     data = await file.read()
     if len(data) > 25 * 1024 * 1024:
-        raise HTTPException(status_code=413, detail="File exceeds 25 MB limit")
+        raise HTTPException(status_code=413, detail={"code": "file_too_large", "message": "File exceeds 25 MB limit"})
     if not data:
-        raise HTTPException(status_code=400, detail="Empty audio upload")
+        raise HTTPException(status_code=400, detail={"code": "empty_file", "message": "Empty audio upload"})
 
     filename = file.filename or "clip.wav"
+    src_name = source_name or filename
+    
     try:
         waveform, duration = decode_upload(data, filename)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(status_code=422, detail={"code": "decode_error", "message": str(exc)}) from exc
 
-    detector = get_active()
-    if detector is None:
-        return AnalyzeResponse(
-            filename=filename,
-            duration_seconds=round(duration, 3),
-            sample_rate=get_settings().sample_rate,
-            verdict=None,
-            reason="no_detector_loaded",
-        ).model_dump()
+    settings = get_settings()
+    if duration > settings.max_session_seconds:
+        raise HTTPException(status_code=413, detail={"code": "duration_exceeded", "message": f"Audio duration {duration:.1f}s exceeds limit {settings.max_session_seconds}s"})
 
-    import time
-    t0 = time.perf_counter()
-    ai_prob = detector.predict(waveform)
-    latency = (time.perf_counter() - t0) * 1000
-    set_last_inference_ms(latency)
+    from app.core.jobs import job_manager
+    try:
+        res = job_manager.create_job(waveform, save_session, src_name)
+        return res
+    except ValueError as exc:
+        raise HTTPException(status_code=429, detail={"code": "busy", "message": str(exc)})
 
-    return AnalyzeResponse(
-        filename=filename,
-        duration_seconds=round(duration, 3),
-        sample_rate=get_settings().sample_rate,
-        verdict=None,
-        reason="thresholds_not_calibrated",
-    ).model_dump()
+@router.get("/jobs/{job_id}")
+async def get_job(job_id: str, since: int = 0) -> dict[str, Any]:
+    from app.core.jobs import job_manager
+    job = job_manager.get_job(job_id, since)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
 
 
 @router.post("/enroll")
