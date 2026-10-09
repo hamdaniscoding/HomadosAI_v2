@@ -1,50 +1,25 @@
-# Model Training
+# Training the XLSR-SLS Model
 
-## Dataset List
-- **LibriSpeech** (dev-clean, test-clean) - Human
-  - Source: http://www.openslr.org/12/
-  - License: CC BY 4.0
-  - Size: ~3GB downloaded
-- **VCTK** - Human
-  - Source: https://datashare.ed.ac.uk/handle/10283/3443
-  - License: ODC-BY
-  - Size: ~3GB capped
-- **WaveFake** - AI
-  - Source: https://zenodo.org/record/5650127
-  - License: CC BY 4.0
-  - Size: ~3GB capped
-- **ASVspoof 2019 LA** - Human & AI
-  - Source: https://datashare.ed.ac.uk/handle/10283/3336
-  - License: ODC-BY
-  - Size: ~3GB capped
-- **Fake-or-Real** - Skipped (Requires Kaggle Login)
-- **AI Generated (Piper, Kokoro)** - AI
-  - Source: Public Domain Text generated via Open Source TTS
-  - Size: 40 minutes generated
+## Dataset Layout
+The training script expects audio data organized as follows:
+```
+data/
+  human/
+    speaker1_clip1.wav
+    speaker2_clip1.mp3
+  ai/
+    piper/
+      clip_0001.wav
+    synthetic_a1.mp3
+```
 
-## Commands to Reproduce
+## Running on SLURM
+1. Update `training/slurm/train_sls.sbatch` with the admin-provided partition, GPU type, and module loads.
+2. Submit the job: `sbatch training/slurm/train_sls.sbatch`
+3. View logs in `training/slurm/logs/`
 
-1. **Download datasets:**
-   ```bash
-   python scripts/datasets/download_librispeech.py
-   python scripts/datasets/download_vctk.py
-   python scripts/datasets/download_wavefake.py
-   python scripts/datasets/download_asvspoof.py
-   # For Fake-or-Real, set KAGGLE_USERNAME and KAGGLE_KEY, then:
-   python scripts/datasets/download_fakeorreal.py
-   ```
+## Resuming
+The script automatically looks for `models/xlsr_sls/pytorch_model.bin`. If it exists, it loads the weights before continuing. 
 
-2. **Generate AI voices:**
-   ```bash
-   python scripts/gen_ai_voices.py --max-minutes 10
-   ```
-
-3. **Build manifest and splits:**
-   ```bash
-   python scripts/make_manifest.py
-   python scripts/make_splits.py
-   python scripts/dataset_stats.py
-   ```
-
-4. **Train Model:**
-   *Model training instructions remain the same.*
+## Copying Checkpoints
+After training completes on the cluster, copy the `models/xlsr_sls` folder back to your local `models/` folder. The app will automatically detect it if registered in `detectors/registry.py`.

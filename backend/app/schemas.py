@@ -15,6 +15,7 @@ class WsStartMessage(BaseModel):
     encoding: str
     mode: str
     save_session: bool = False
+    session_id: str | None = None
 
 
 class WsStopMessage(BaseModel):
@@ -40,6 +41,7 @@ class WsStatusMessage(BaseModel):
     received_seconds: float
     speech_seconds: float | None = None
     needed_seconds: float
+    current_hop_seconds: float | None = None
 
 
 class SpeakerInfo(BaseModel):

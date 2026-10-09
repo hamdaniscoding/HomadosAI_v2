@@ -1,0 +1,9 @@
+{
+  "hf_audio:Gustking/wav2vec2-large-xlsr-deepfake-audio-classification": {
+    "AUC": 0.68,
+    "EER": 0.4,
+    "EER_threshold": 0.3101482391357422,
+    "Accuracy_at_EER": 0.5,
+    "TPR_at_1%_FPR": 0.2
+  }
+}
