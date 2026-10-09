@@ -76,14 +76,14 @@ const Home = () => {
 
   const handleMic = () => {
     initClient('Microphone');
-    clientRef.current?.startMicrophone(false);
+    clientRef.current?.startMicrophone(true);
   };
   
   const handleFileFast = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       initClient(file.name);
-      clientRef.current?.startFileUpload(file, false);
+      clientRef.current?.startFileUpload(file, true);
     }
     e.target.value = '';
   };
@@ -92,7 +92,7 @@ const Home = () => {
     const file = e.target.files?.[0];
     if (file) {
       initClient(file.name + " (Replay)");
-      clientRef.current?.startFileSimulated(file, false);
+      clientRef.current?.startFileSimulated(file, true);
     }
     e.target.value = '';
   };
@@ -175,7 +175,7 @@ const Home = () => {
         )}
 
         {isLive && (
-          <motion.div key="live" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="glass" style={{ padding: '32px', borderRadius: '24px' }}>
+          <motion.div key="live" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="glass glass-card-responsive">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
               <div style={{ fontSize: '14px', fontWeight: 600 }}>
                 {state === 'collecting' ? 'Analysis in progress' : 'Live'}: {sourceName}
@@ -183,22 +183,32 @@ const Home = () => {
               <button onClick={stop} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #ccc', background: '#fff', cursor: 'pointer' }}>Stop & View Results</button>
             </div>
             
-            <div style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
-              <div style={{ width: '160px', height: '160px', borderRadius: '50%', border: '4px solid #eee', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="live-container">
+              <div className="score-ring">
                 {latestScore?.ai_probability !== null && latestScore?.ai_probability !== undefined && (
-                  <svg style={{ position: 'absolute', inset: -4, width: '168px', height: '168px', transform: 'rotate(-90deg)' }}>
-                    <circle cx="84" cy="84" r="80" fill="none" stroke="#FF5A00" strokeWidth="4" strokeDasharray="502" strokeDashoffset={502 - (502 * ((latestScore.smoothed_probability ?? latestScore.ai_probability) * 100) / 100)} style={{ transition: 'stroke-dashoffset 0.5s ease-out' }} />
+                  <svg viewBox="0 0 100 100" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="44"
+                      fill="none"
+                      stroke="#FF5A00"
+                      strokeWidth="6"
+                      strokeDasharray="276.46"
+                      strokeDashoffset={276.46 - (276.46 * ((latestScore.smoothed_probability ?? latestScore.ai_probability) * 100) / 100)}
+                      style={{ transition: 'stroke-dashoffset 0.5s ease-out' }}
+                    />
                   </svg>
                 )}
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '48px', fontWeight: 700, fontFamily: "'Instrument Serif', serif" }}>
+                  <div className="score-val">
                     {latestScore?.ai_probability === null || latestScore?.ai_probability === undefined ? '—' : Math.round((latestScore.smoothed_probability ?? latestScore.ai_probability) * 100)}
                   </div>
                 </div>
               </div>
               
-              <div style={{ flex: 1 }}>
-                <ProbabilityChart scores={scores.slice(-60)} />
+              <div className="chart-wrapper">
+                <ProbabilityChart scores={scores} mode="live" />
               </div>
             </div>
             
@@ -219,13 +229,13 @@ const Home = () => {
         )}
 
         {isFinished && (
-          <motion.div key="results" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass" style={{ padding: '32px', borderRadius: '24px' }}>
+          <motion.div key="results" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass glass-card-responsive">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
               <div style={{ fontSize: '24px', fontWeight: 600, fontFamily: "'Instrument Serif', serif" }}>Analysis complete: {sourceName}</div>
               <button onClick={() => reset()} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #ccc', background: '#fff', cursor: 'pointer' }}>Analyze another</button>
             </div>
             
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '32px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '16px', marginBottom: '32px' }}>
               <div style={{ padding: '16px', background: '#fff', borderRadius: '12px', border: '1px solid #eee' }}>
                 <div style={{ fontSize: '12px', color: '#7a7771' }}>Windows Analyzed</div>
                 <div style={{ fontSize: '24px', fontWeight: 600 }}>{windowsAnalyzed}</div>
@@ -252,8 +262,8 @@ const Home = () => {
               </div>
             </div>
             
-            <div style={{ marginBottom: '16px' }}>
-              <ProbabilityChart scores={scores} currentTime={scrubTime} />
+            <div style={{ marginBottom: '16px', width: '100%', minWidth: 0, maxWidth: '100%', overflow: 'hidden' }}>
+              <ProbabilityChart scores={scores} currentTime={scrubTime} mode="results" />
             </div>
             
             {scores.length > 0 && (

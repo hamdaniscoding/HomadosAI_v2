@@ -127,6 +127,75 @@ a:hover {
   box-shadow: 0 10px 40px rgba(120,60,20,0.10), inset 0 1px 0 rgba(255,255,255,0.9);
 }
 
+.live-container {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.score-ring {
+  width: 160px;
+  height: 160px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 4px solid #eee;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.score-ring .score-val {
+  font-size: 48px;
+  font-weight: 700;
+  font-family: 'Instrument Serif', serif;
+}
+
+.chart-wrapper {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+@media (max-width: 900px) {
+  .live-container {
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+  .score-ring {
+    width: 110px;
+    height: 110px;
+  }
+  .score-ring .score-val {
+    font-size: 36px;
+  }
+}
+
+.glass-card-responsive {
+  padding: 32px;
+  border-radius: 24px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+@media (max-width: 480px) {
+  .glass-card-responsive {
+    padding: 16px;
+    border-radius: 16px;
+  }
+}
+
 @supports not (backdrop-filter: blur(22px)) {
   .glass, .bar {
     background: #ffffff;
