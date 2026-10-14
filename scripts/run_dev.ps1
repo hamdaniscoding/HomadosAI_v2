@@ -1,17 +1,23 @@
-param (
-    [string]$Device = "cpu"
-)
+﻿param([switch]$Dev)
+$root = Split-Path -Parent $PSScriptRoot
+$py = Join-Path $root ".venv\Scripts\python.exe"
+if (-not (Test-Path $py)) { Write-Error "Missing .venv at $py - see the from-scratch steps"; exit 1 }
+if (-not $env:TORCH_DEVICE) { $env:TORCH_DEVICE = (& $py -c "import torch; print('cuda' if torch.cuda.is_available() else 'cpu')") }
 
-$env:TORCH_DEVICE = $Device
-Write-Host "Starting backend on $Device..." -ForegroundColor Green
+# stop any old server on port 8000
+Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue |
+  ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
 
-# Start backend
-Start-Process -NoNewWindow -FilePath "python" -ArgumentList "-m uvicorn backend.app.main:app --reload --port 8000"
+Write-Host "Starting on device: $env:TORCH_DEVICE  ->  http://127.0.0.1:8000"
+$fe = $null
+if ($Dev) {
+  $fe = Start-Process -FilePath "cmd.exe" -ArgumentList "/c","npm run dev" `
+        -WorkingDirectory (Join-Path $root "frontend") -NoNewWindow -PassThru
+  Write-Host "Frontend dev server: http://localhost:5173"
+}
+try {
+  & $py -m uvicorn app.main:app --app-dir (Join-Path $root "backend") --host 127.0.0.1 --port 8000
+} finally {
+  if ($fe -and -not $fe.HasExited) { taskkill /PID $fe.Id /T /F | Out-Null }
+}
 
-Write-Host "Starting frontend..." -ForegroundColor Green
-Set-Location frontend
-Start-Process -NoNewWindow -FilePath "npm" -ArgumentList "run dev"
-
-Write-Host "Backend URL: http://127.0.0.1:8000" -ForegroundColor Cyan
-Write-Host "Frontend URL: http://localhost:5173" -ForegroundColor Cyan
-Write-Host "Press Ctrl+C to stop both." -ForegroundColor Yellow
