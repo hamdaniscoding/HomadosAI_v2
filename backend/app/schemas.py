@@ -78,13 +78,40 @@ class WsErrorMessage(BaseModel):
 
 # ---------- HTTP responses ----------
 
+class DetectorStatus(BaseModel):
+    """Status of a single detector."""
+    name: str
+    loaded: bool
+    load_error: str | None = None
+    model_id: str | None = None
+    revision: str | None = None
+    device: str | None = None
+    dtype: str | None = None
+    label_map: dict[str, str] | dict[int, str] | None = None
+    fake_label: str | None = None
+    fake_class_id: int | None = None
+    load_time_seconds: float | None = None
+
+
+class EcapaStatus(BaseModel):
+    """Status of the ECAPA encoder."""
+    loaded: bool
+    status: str = "loaded"  # "loading", "loaded", "error"
+    load_error: str | None = None
+
+
 class HealthResponse(BaseModel):
     """GET /api/v1/health response."""
     status: str = "ok"
     app_version: str
     python_version: str
+    git_commit: str | None = None
+    started_at: str | None = None
     torch_version: str | None = None
     cuda_available: bool | None = None
+    cuda_version: str | None = None
+    gpu_name: str | None = None
+    vram_mb: float | None = None
     device: str
     sample_rate: int
     window_seconds: float
@@ -93,19 +120,6 @@ class HealthResponse(BaseModel):
     detectors: list[DetectorStatus] = Field(default_factory=list)
     ecapa: EcapaStatus
     last_inference_ms: float | None = None
-
-
-class DetectorStatus(BaseModel):
-    """Status of a single detector."""
-    name: str
-    loaded: bool
-    load_error: str | None = None
-
-
-class EcapaStatus(BaseModel):
-    """Status of the ECAPA encoder."""
-    loaded: bool
-    load_error: str | None = None
 
 
 class AnalyzeResponse(BaseModel):
@@ -123,5 +137,5 @@ class EnrollResponse(BaseModel):
     embedding: list[float]
 
 
-# Rebuild forward refs for HealthResponse (DetectorStatus used before definition)
+# Rebuild forward refs for HealthResponse
 HealthResponse.model_rebuild()
